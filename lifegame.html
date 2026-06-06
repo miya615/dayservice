@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>リアル人生ゲーム</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ============================================================ 変数・リセット */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;
+  --bg2:rgba(255,255,255,.06);
+  --bg3:rgba(255,255,255,.1);
+  --glass:rgba(20,30,60,.7);
+  --border:rgba(255,255,255,.12);
+  --text:#e8f0ff;
+  --muted:#7a90c0;
+  --gold:#f5c842;
+  --gold2:#ff9f43;
+  --cyan:#4fc3f7;
+  --green:#43e97b;
+  --red:#ff5252;
+  --purple:#b39ddb;
+  --c0:#ff6b6b;--c1:#ffd93d;--c2:#43e97b;--c3:#4fc3f7;--c4:#ff922b;--c5:#cc5de8;--c6:#74b9ff;
+  --r-sm:10px;--r-md:16px;--r-lg:22px;--r-xl:30px;
+  --ease:.2s ease;
+}
+html{height:100%;background:var(--bg)}
+body{
+  font-family:'Segoe UI','Noto Sans JP',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* 背景グラデーション */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse at 20% 20%,rgba(79,195,247,.12) 0%,transparent 50%),
+    radial-gradient(ellipse at 80% 80%,rgba(179,157,219,.10) 0%,transparent 50%),
+    radial-gradient(ellipse at 50% 50%,rgba(67,233,123,.06) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:inherit;outline:none}
+
+/* ============================================================ アニメーション */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+@keyframes glow{0%,100%{box-shadow:0 0 12px var(--gold)}50%{box-shadow:0 0 28px var(--gold),0 0 50px rgba(245,200,66,.3)}}
+@keyframes levelUp{0%{transform:scale(1)}40%{transform:scale(1.18)}80%{transform:scale(.96)}100%{transform:scale(1)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes stars{from{transform:translateY(0);opacity:1}to{transform:translateY(-100px);opacity:0}}
+@keyframes popIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ============================================================ グラスカード */
+.glass{
+  background:var(--glass);
+  border:1px solid var(--border);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border-radius:var(--r-lg);
+}
+
+/* ============================================================ レイアウト */
+.app{position:relative;z-index:1;max-width:420px;margin:0 auto;padding:0 0 90px}
+
+/* ============================================================ ヘッダー */
+.header{
+  padding:52px 20px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  animation:fadeUp .5s ease;
+}
+.header-left{}
+.header-greeting{font-size:.78rem;color:var(--muted);margin-bottom:2px}
+.header-name{font-size:1.15rem;font-weight:800;color:var(--text)}
+.header-title{
+  font-size:.7rem;font-weight:700;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-top:1px;
+}
+.header-lv-badge{
+  width:64px;height:64px;border-radius:50%;
+  background:linear-gradient(135deg,var(--gold2),var(--gold));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-shadow:0 0 24px rgba(245,200,66,.35);
+  animation:glow 2.5s ease-in-out infinite;
+  flex-shrink:0;
+}
+.header-lv-badge__label{font-size:.52rem;font-weight:800;color:#3a2000;letter-spacing:.1em}
+.header-lv-badge__num{font-size:1.5rem;font-weight:900;color:#1a0e00;line-height:1.1}
+
+/* ============================================================ XPバー（全体） */
+.overall-xp{
+  margin:0 16px 16px;
+  padding:14px 18px;
+  animation:fadeUp .5s ease .05s both;
+}
+.overall-xp__row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.overall-xp__label{font-size:.7rem;color:var(--muted);font-weight:600}
+.overall-xp__val{font-size:.72rem;color:var(--gold);font-weight:700}
+.xp-bar{height:8px;background:rgba(255,255,255,.08);border-radius:50px;overflow:hidden}
+.xp-bar__fill{
+  height:100%;border-radius:50px;
+  background:linear-gradient(90deg,var(--gold2),var(--gold),#fff6a0);
+  transition:width .8s cubic-bezier(.22,1,.36,1);
+}
+.overall-xp__total{font-size:.68rem;color:var(--muted);margin-top:5px;text-align:right}
+
+/* ============================================================ ステータスカード行 */
+.stat-row{
+  display:flex;gap:10px;
+  padding:0 16px 16px;
+  overflow-x:auto;
+  animation:fadeUp .5s ease .08s both;
+}
+.stat-row::-webkit-scrollbar{display:none}
+.stat-card{
+  flex-shrink:0;width:90px;
+  padding:12px 10px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  cursor:pointer;transition:transform var(--ease);
+}
+.stat-card:hover{transform:translateY(-3px)}
+.stat-card__icon{font-size:1.3rem}
+.stat-card__name{font-size:.64rem;color:var(--muted);font-weight:600}
+.stat-card__lv{font-size:.82rem;font-weight:800}
+.stat-card__bar{width:100%;height:4px;background:rgba(255,255,255,.08);border-radius:50px;overflow:hidden;margin-top:2px}
+.stat-card__bar-fill{height:100%;border-radius:50px;transition:width .6s cubic-bezier(.22,1,.36,1)}
+
+/* ============================================================ セクションタイトル */
+.sec{
+  padding:0 16px 10px;
+  font-size:.68rem;font-weight:800;color:var(--muted);
+  letter-spacing:.12em;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ============================================================ レーダーチャート */
+.radar-wrap{
+  margin:0 16px 16px;padding:18px;
+  display:flex;align-items:center;justify-content:center;
+  animation:fadeUp .5s ease .1s both;
+}
+.radar-wrap canvas{max-width:260px;max-height:260px}
+
+/* ============================================================ 今日のスコア */
+.score-row{
+  display:flex;gap:10px;
+  margin:0 16px 16px;
+  animation:fadeUp .5s ease .12s both;
+}
+.score-card{flex:1;padding:16px;text-align:center}
+.score-card__label{font-size:.65rem;color:var(--muted);font-weight:700;margin-bottom:6px}
+.score-card__num{font-size:2rem;font-weight:900;line-height:1}
+.score-card__unit{font-size:.65rem;color:var(--muted);margin-top:3px}
+
+/* ============================================================ 入力フォーム */
+.form-wrap{
+  margin:0 16px 16px;padding:18px;
+  animation:fadeUp .5s ease .14s both;
+}
+.form-wrap__title{
+  font-size:.78rem;font-weight:800;color:var(--cyan);
+  display:flex;align-items:center;gap:6px;margin-bottom:14px;
+  letter-spacing:.06em;
+}
+/* カテゴリボタン */
+.cat-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px;
+}
+.cat-btn{
+  background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:8px 4px 7px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:.62rem;font-weight:700;color:var(--muted);
+  cursor:pointer;transition:all var(--ease);
+}
+.cat-btn__icon{font-size:1.15rem}
+.cat-btn.selected{color:#fff;border-color:transparent;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+/* 行動入力 */
+.action-input{
+  width:100%;background:rgba(255,255,255,.06);
+  border:1.5px solid var(--border);border-radius:var(--r-sm);
+  padding:11px 14px;color:var(--text);font-size:.9rem;
+  margin-bottom:12px;
+  transition:border-color var(--ease),box-shadow var(--ease);
+}
+.action-input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(79,195,247,.15)}
+.action-input::placeholder{color:var(--muted)}
+/* XP入力行 */
+.xp-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.xp-num-input{
+  width:72px;background:rgba(255,255,255,.06);
+  border:1.5px solid var(--border);border-radius:var(--r-sm);
+  padding:10px;color:var(--gold);font-size:1rem;font-weight:800;
+  text-align:center;
+}
+.xp-presets{display:flex;gap:6px;flex-wrap:wrap}
+.xp-preset{
+  background:rgba(255,255,255,.06);border:1px solid var(--border);
+  border-radius:50px;padding:5px 12px;font-size:.7rem;font-weight:700;
+  color:var(--muted);cursor:pointer;transition:all var(--ease);
+}
+.xp-preset:hover{border-color:var(--gold);color:var(--gold)}
+/* 追加ボタン */
+.add-btn{
+  width:100%;padding:13px;border-radius:var(--r-md);
+  background:linear-gradient(135deg,rgba(79,195,247,.2),rgba(79,195,247,.08));
+  border:1.5px solid var(--cyan);color:var(--cyan);
+  font-size:.9rem;font-weight:800;letter-spacing:.06em;
+  cursor:pointer;transition:all var(--ease);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.add-btn:hover{background:linear-gradient(135deg,rgba(79,195,247,.3),rgba(79,195,247,.15));box-shadow:0 0 20px rgba(79,195,247,.25);transform:translateY(-2px)}
+.add-btn:active{transform:translateY(0) scale(.98)}
+
+/* ============================================================ 履歴リスト */
+.history-wrap{margin:0 16px;animation:fadeUp .5s ease .16s both}
+.history-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.history-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;
+  border-radius:var(--r-md);
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  animation:slideIn .3s ease;transition:background var(--ease);
+}
+.history-item:hover{background:rgba(255,255,255,.07)}
+.history-icon{
+  width:34px;height:34px;border-radius:var(--r-sm);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.95rem;flex-shrink:0;
+}
+.history-body{flex:1;min-width:0}
+.history-action{font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-meta{font-size:.66rem;color:var(--muted);margin-top:2px}
+.history-xp{font-size:.82rem;font-weight:800;flex-shrink:0}
+.history-del{
+  width:26px;height:26px;border-radius:50%;
+  background:transparent;color:var(--muted);font-size:.78rem;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all var(--ease);flex-shrink:0;
+}
+.history-del:hover{background:rgba(255,82,82,.2);color:var(--red)}
+.history-empty{text-align:center;padding:32px 20px;color:var(--muted);font-size:.84rem}
+.history-empty__icon{font-size:2.2rem;display:block;margin-bottom:8px}
+
+/* ============================================================ ボトムナビ */
+.bottom-nav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:420px;
+  background:rgba(10,14,26,.85);
+  border-top:1px solid var(--border);
+  backdrop-filter:blur(20px);
+  display:flex;justify-content:space-around;
+  padding:10px 0 20px;z-index:100;
+}
+.nav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:.6rem;font-weight:700;color:var(--muted);
+  cursor:pointer;transition:color var(--ease);padding:4px 16px;
+}
+.nav-btn.active{color:var(--cyan)}
+.nav-btn__icon{font-size:1.3rem}
+
+/* ============================================================ レベルアップモーダル */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.8);z-index:900;
+  align-items:center;justify-content:center;padding:20px;
+  backdrop-filter:blur(6px);
+}
+.modal-overlay.open{display:flex}
+.lu-modal{
+  background:linear-gradient(135deg,rgba(20,10,40,.95),rgba(10,8,30,.98));
+  border:2px solid var(--gold);border-radius:var(--r-xl);
+  padding:40px 30px;max-width:340px;width:100%;
+  text-align:center;animation:popIn .35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 0 60px rgba(245,200,66,.3);
+  position:relative;overflow:hidden;
+}
+.lu-modal::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(245,200,66,.18) 0%,transparent 65%);
+  pointer-events:none;
+}
+.lu-stars{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lu-star{position:absolute;font-size:1.1rem;animation:stars .8s ease-out both}
+.lu-crown{font-size:3rem;display:block;margin-bottom:6px}
+.lu-title{
+  font-size:1.5rem;font-weight:900;letter-spacing:.08em;margin-bottom:4px;
+  background:linear-gradient(90deg,var(--gold2),var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.lu-cat{font-size:.9rem;color:var(--text);margin-bottom:10px;font-weight:700}
+.lu-lv{font-size:3.2rem;font-weight:900;color:var(--gold);line-height:1;text-shadow:0 0 30px rgba(245,200,66,.5)}
+.lu-close{
+  margin-top:20px;padding:12px 40px;
+  background:linear-gradient(135deg,var(--gold2),var(--gold));
+  border-radius:50px;color:#1a0e00;font-size:.9rem;font-weight:800;
+  cursor:pointer;transition:all var(--ease);
+  box-shadow:0 4px 16px rgba(245,200,66,.3);
+}
+.lu-close:hover{transform:translateY(-2px);box-shadow:0 6px 22px rgba(245,200,66,.45)}
+
+/* ============================================================ トースト */
+#toast{
+  position:fixed;bottom:90px;left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:rgba(20,30,60,.95);border:1px solid var(--border);
+  color:var(--text);padding:11px 22px;border-radius:50px;
+  font-size:.82rem;font-weight:700;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:9999;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;white-space:nowrap;
+  backdrop-filter:blur(12px);
+}
+
+/* ============================================================ レスポンシブ（PC） */
+@media(min-width:600px){
+  .app{max-width:520px}
+  .bottom-nav{max-width:520px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== ヘッダー ===== -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-greeting" id="greeting-text">おはよう ☀️</div>
+      <div class="header-name">冒険者よ</div>
+      <div class="header-title" id="overall-title">見習い冒険者</div>
+    </div>
+    <div class="header-lv-badge">
+      <div class="header-lv-badge__label">LEVEL</div>
+      <div class="header-lv-badge__num" id="overall-lv">1</div>
+    </div>
+  </div>
+
+  <!-- ===== 全体XPバー ===== -->
+  <div class="overall-xp glass">
+    <div class="overall-xp__row">
+      <div class="overall-xp__label">OVERALL EXP</div>
+      <div class="overall-xp__val" id="overall-xp-text">0 / 100 XP</div>
+    </div>
+    <div class="xp-bar">
+      <div class="xp-bar__fill" id="overall-xp-fill" style="width:0%"></div>
+    </div>
+    <div class="overall-xp__total" id="overall-total-xp">TOTAL: 0 XP</div>
+  </div>
+
+  <!-- ===== ステータスカード行 ===== -->
+  <div class="stat-row" id="stat-row">
+    <!-- JS で生成 -->
+  </div>
+
+  <!-- ===== レーダーチャート ===== -->
+  <div class="sec">ステータス</div>
+  <div class="radar-wrap glass">
+    <canvas id="radar-chart"></canvas>
+  </div>
+
+  <!-- ===== 今日のスコア ===== -->
+  <div class="sec">今日</div>
+  <div class="score-row">
+    <div class="score-card glass">
+      <div class="score-card__label">TODAY XP</div>
+      <div class="score-card__num" id="today-xp" style="color:var(--cyan)">0</div>
+      <div class="score-card__unit">経験値</div>
+    </div>
+    <div class="score-card glass">
+      <div class="score-card__label">TODAY 行動</div>
+      <div class="score-card__num" id="today-count" style="color:var(--green)">0</div>
+      <div class="score-card__unit">件</div>
+    </div>
+    <div class="score-card glass">
+      <div class="score-card__label">連続日数</div>
+      <div class="score-card__num" id="streak-days" style="color:var(--gold)">0</div>
+      <div class="score-card__unit">日</div>
+    </div>
+  </div>
+
+  <!-- ===== 行動入力フォーム ===== -->
+  <div class="sec">行動を追加</div>
+  <div class="form-wrap glass">
+    <div class="form-wrap__title"><span>⚡</span> カテゴリと行動を入力</div>
+    <!-- カテゴリ選択 -->
+    <div class="cat-grid" id="cat-grid"></div>
+    <!-- 行動テキスト -->
+    <input class="action-input" type="text" id="action-input" placeholder="例：腕立て伏せを50回やった" maxlength="80"/>
+    <!-- XP入力 -->
+    <div class="xp-row">
+      <input class="xp-num-input" type="number" id="xp-input" min="1" max="9999" value="10"/>
+      <div class="xp-presets">
+        <button class="xp-preset" onclick="setXp(10)">+10</button>
+        <button class="xp-preset" onclick="setXp(25)">+25</button>
+        <button class="xp-preset" onclick="setXp(50)">+50</button>
+        <button class="xp-preset" onclick="setXp(100)">+100</button>
+      </div>
+    </div>
+    <button class="add-btn" onclick="addAction()"><span>＋</span> 経験値を獲得する</button>
+  </div>
+
+  <!-- ===== 行動履歴 ===== -->
+  <div class="sec">行動履歴</div>
+  <div class="history-wrap">
+    <div class="history-list" id="history-list"></div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ===== ボトムナビ ===== -->
+<div class="bottom-nav">
+  <div class="nav-btn active">
+    <span class="nav-btn__icon">🏠</span>ホーム
+  </div>
+  <div class="nav-btn" onclick="document.querySelector('.form-wrap').scrollIntoView({behavior:'smooth'})">
+    <span class="nav-btn__icon">⚡</span>追加
+  </div>
+  <div class="nav-btn" onclick="document.querySelector('.history-wrap').scrollIntoView({behavior:'smooth'})">
+    <span class="nav-btn__icon">📜</span>履歴
+  </div>
+</div>
+
+<!-- ===== レベルアップモーダル ===== -->
+<div class="modal-overlay" id="lu-modal">
+  <div class="lu-modal">
+    <div class="lu-stars" id="lu-stars"></div>
+    <span class="lu-crown">👑</span>
+    <div class="lu-title">LEVEL UP!</div>
+    <div class="lu-cat" id="lu-cat">筋力がレベルアップ！</div>
+    <div class="lu-lv" id="lu-lv">Lv 2</div>
+    <button class="lu-close" onclick="closeLuModal()">OK！続ける</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ============================================================ 定数 */
+var CATS = [
+  {key:'strength', name:'筋力',   icon:'💪', color:'var(--c0)', hex:'#ff6b6b'},
+  {key:'knowledge',name:'知識',   icon:'📚', color:'var(--c1)', hex:'#ffd93d'},
+  {key:'money',    name:'お金',   icon:'💰', color:'var(--c2)', hex:'#43e97b'},
+  {key:'health',   name:'健康',   icon:'❤️', color:'var(--c3)', hex:'#4fc3f7'},
+  {key:'social',   name:'人間関係',icon:'🤝', color:'var(--c4)', hex:'#ff922b'},
+  {key:'business', name:'副業',   icon:'🚀', color:'var(--c5)', hex:'#cc5de8'},
+  {key:'mental',   name:'メンタル',icon:'🧘', color:'var(--c6)', hex:'#74b9ff'},
+];
+
+var TITLES = ['','見習い冒険者','駆け出し冒険者','冒険者','熟練冒険者','上級冒険者','勇者','英雄','伝説の英雄','神話の勇者','✨ 神'];
+var XP_PER_LEVEL = 100;
+var STORAGE_KEY = 'realLifeGame_v2';
+
+/* ============================================================ データ */
+function loadData(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||createInit();}
+  catch(e){return createInit();}
+}
+function createInit(){
+  var cats={};
+  CATS.forEach(function(c){cats[c.key]={xp:0,level:1};});
+  return{cats:cats,history:[],lastDate:''};
+}
+function saveData(data){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}
+  catch(e){showToast('⚠️ 保存失敗');}
+}
+function calcLevel(xp){return Math.floor(xp/XP_PER_LEVEL)+1;}
+function calcXpInLevel(xp){return xp%XP_PER_LEVEL;}
+function calcOverall(data){
+  var total=0;
+  CATS.forEach(function(c){total+=data.cats[c.key].xp;});
+  return{level:calcLevel(total),xpInLevel:calcXpInLevel(total),total:total};
+}
+function todayStr(){
+  var n=new Date();
+  return n.getFullYear()+'/'+(n.getMonth()+1).toString().padStart(2,'0')+'/'+n.getDate().toString().padStart(2,'0');
+}
+
+/* ============================================================ 選択カテゴリ */
+var selectedCat=null;
+
+/* ============================================================ レーダーチャート */
+var radarChart=null;
+function initRadar(data){
+  var ctx=document.getElementById('radar-chart').getContext('2d');
+  var labels=CATS.map(function(c){return c.name;});
+  var values=CATS.map(function(c){return Math.min(data.cats[c.key].level,10);});
+  if(radarChart)radarChart.destroy();
+  radarChart=new Chart(ctx,{
+    type:'radar',
+    data:{
+      labels:labels,
+      datasets:[{
+        data:values,
+        backgroundColor:'rgba(79,195,247,.15)',
+        borderColor:'rgba(79,195,247,.7)',
+        borderWidth:2,
+        pointBackgroundColor:CATS.map(function(c){return c.hex;}),
+        pointBorderColor:'transparent',
+        pointRadius:5,
+        pointHoverRadius:7,
+      }]
+    },
+    options:{
+      responsive:true,
+      animation:{duration:600},
+      scales:{r:{
+        min:0,max:10,
+        ticks:{display:false,stepSize:2},
+        grid:{color:'rgba(255,255,255,.08)'},
+        angleLines:{color:'rgba(255,255,255,.08)'},
+        pointLabels:{
+          color:'rgba(200,220,255,.7)',
+          font:{size:11,weight:'bold'},
+        }
+      }},
+      plugins:{legend:{display:false},tooltip:{
+        backgroundColor:'rgba(10,14,26,.9)',
+        titleColor:'#e8f0ff',bodyColor:'#7a90c0',
+        borderColor:'rgba(255,255,255,.12)',borderWidth:1,
+        callbacks:{label:function(ctx){return ' Lv '+ctx.raw;}}
+      }}
+    }
+  });
+}
+function updateRadar(data){
+  if(!radarChart)return;
+  radarChart.data.datasets[0].data=CATS.map(function(c){return Math.min(data.cats[c.key].level,10);});
+  radarChart.update();
+}
+
+/* ============================================================ UI描画 */
+function buildCatGrid(){
+  var grid=document.getElementById('cat-grid');
+  grid.innerHTML=CATS.map(function(c){
+    return '<button class="cat-btn" data-cat="'+c.key+'" onclick="selectCat(\''+c.key+'\')">'+
+      '<span class="cat-btn__icon">'+c.icon+'</span>'+
+      '<span>'+c.name+'</span>'+
+    '</button>';
+  }).join('');
+}
+
+function selectCat(key){
+  selectedCat=key;
+  document.querySelectorAll('.cat-btn').forEach(function(btn){
+    var k=btn.dataset.cat;
+    var cat=CATS.find(function(c){return c.key===k;});
+    if(k===key){
+      btn.classList.add('selected');
+      btn.style.background=cat.hex+'33';
+      btn.style.borderColor=cat.hex+'88';
+      btn.style.color=cat.hex;
+      btn.style.boxShadow='0 0 14px '+cat.hex+'44';
+    }else{
+      btn.classList.remove('selected');
+      btn.style.background='';btn.style.borderColor='';
+      btn.style.color='';btn.style.boxShadow='';
+    }
+  });
+}
+
+function renderStatRow(data){
+  var row=document.getElementById('stat-row');
+  row.innerHTML=CATS.map(function(c){
+    var cd=data.cats[c.key];
+    var pct=(calcXpInLevel(cd.xp)/XP_PER_LEVEL)*100;
+    return '<div class="stat-card glass">'+
+      '<div class="stat-card__icon">'+c.icon+'</div>'+
+      '<div class="stat-card__name">'+c.name+'</div>'+
+      '<div class="stat-card__lv" style="color:'+c.hex+'">Lv.'+cd.level+'</div>'+
+      '<div class="stat-card__bar"><div class="stat-card__bar-fill" style="width:'+pct+'%;background:'+c.hex+'"></div></div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderOverall(data){
+  var o=calcOverall(data);
+  var pct=(o.xpInLevel/XP_PER_LEVEL)*100;
+  var title=TITLES[Math.min(o.level,TITLES.length-1)]||TITLES[TITLES.length-1];
+  document.getElementById('overall-lv').textContent=o.level;
+  document.getElementById('overall-title').textContent=title;
+  document.getElementById('overall-xp-fill').style.width=pct+'%';
+  document.getElementById('overall-xp-text').textContent=o.xpInLevel+' / '+XP_PER_LEVEL+' XP';
+  document.getElementById('overall-total-xp').textContent='TOTAL: '+o.total+' XP';
+}
+
+function renderTodayStats(data){
+  var today=todayStr();
+  var todayItems=data.history.filter(function(h){return h.date&&h.date.startsWith(today);});
+  var todayXp=todayItems.reduce(function(s,h){return s+h.xp;},0);
+  document.getElementById('today-xp').textContent=todayXp;
+  document.getElementById('today-count').textContent=todayItems.length;
+  // 連続日数を計算する
+  var days=0;
+  var d=new Date();
+  while(true){
+    var ds=d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0');
+    var found=data.history.some(function(h){return h.date&&h.date.startsWith(ds);});
+    if(!found)break;
+    days++;
+    d.setDate(d.getDate()-1);
+  }
+  document.getElementById('streak-days').textContent=days;
+}
+
+function renderHistory(data){
+  var list=document.getElementById('history-list');
+  if(data.history.length===0){
+    list.innerHTML='<div class="history-empty"><span class="history-empty__icon">📜</span>まだ行動がありません<br>最初の一歩を踏み出そう！</div>';
+    return;
+  }
+  var items=data.history.slice().reverse();
+  list.innerHTML=items.map(function(item){
+    var cat=CATS.find(function(c){return c.key===item.catKey;});
+    var hex=cat?cat.hex:'#aaa';
+    var icon=cat?cat.icon:'?';
+    var name=cat?cat.name:item.catKey;
+    return '<div class="history-item">'+
+      '<div class="history-icon" style="background:'+hex+'22;color:'+hex+'">'+icon+'</div>'+
+      '<div class="history-body">'+
+        '<div class="history-action">'+escHtml(item.action)+'</div>'+
+        '<div class="history-meta">'+name+' ・ '+(item.date||'')+'</div>'+
+      '</div>'+
+      '<div class="history-xp" style="color:'+hex+'">+'+item.xp+'<span style="font-size:.6rem;font-weight:600;color:var(--muted)"> XP</span></div>'+
+      '<button class="history-del" onclick="deleteAction(\''+item.id+'\')">✕</button>'+
+    '</div>';
+  }).join('');
+}
+
+function renderAll(data,levelUpKey){
+  renderOverall(data);
+  renderStatRow(data);
+  renderTodayStats(data);
+  renderHistory(data);
+  updateRadar(data);
+}
+
+/* ============================================================ アクション追加 */
+function addAction(){
+  var actionText=document.getElementById('action-input').value.trim();
+  var xpVal=parseInt(document.getElementById('xp-input').value,10);
+  if(!selectedCat){showToast('⚠️ カテゴリを選択してください');return;}
+  if(!actionText){showToast('⚠️ 行動を入力してください');return;}
+  if(isNaN(xpVal)||xpVal<1){showToast('⚠️ 経験値は1以上を入力してください');return;}
+  if(xpVal>9999){showToast('⚠️ 経験値は9999以下にしてください');return;}
+
+  var data=loadData();
+  var cd=data.cats[selectedCat];
+  var lvBefore=calcLevel(cd.xp);
+  cd.xp+=xpVal;
+  cd.level=calcLevel(cd.xp);
+  var lvAfter=cd.level;
+  var didLevelUp=lvAfter>lvBefore;
+
+  var now=new Date();
+  var dateStr=now.getFullYear()+'/'+(now.getMonth()+1).toString().padStart(2,'0')+'/'+now.getDate().toString().padStart(2,'0')+
+    ' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  data.history.push({id:Date.now().toString(),catKey:selectedCat,action:actionText,xp:xpVal,date:dateStr});
+
+  saveData(data);
+  renderAll(data);
+  document.getElementById('action-input').value='';
+
+  if(didLevelUp){showLevelUp(selectedCat,lvAfter);}
+  else{
+    var cat=CATS.find(function(c){return c.key===selectedCat;});
+    showToast('⚡ '+(cat?cat.icon+' '+cat.name:'')+' +'+xpVal+' XP 獲得！');
+  }
+}
+
+/* ============================================================ 行動削除 */
+function deleteAction(id){
+  if(!confirm('この行動を削除しますか？\n経験値も戻ります。'))return;
+  var data=loadData();
+  var idx=data.history.findIndex(function(h){return h.id===id;});
+  if(idx===-1){showToast('⚠️ 見つかりませんでした');return;}
+  var item=data.history[idx];
+  var cd=data.cats[item.catKey];
+  cd.xp=Math.max(0,cd.xp-item.xp);
+  cd.level=calcLevel(cd.xp);
+  data.history.splice(idx,1);
+  saveData(data);
+  renderAll(data);
+  showToast('🗑️ 削除しました（-'+item.xp+' XP）');
+}
+
+/* ============================================================ クイックXP */
+function setXp(val){document.getElementById('xp-input').value=val;}
+
+/* ============================================================ レベルアップ演出 */
+function showLevelUp(catKey,newLevel){
+  var cat=CATS.find(function(c){return c.key===catKey;});
+  if(!cat)return;
+  document.getElementById('lu-cat').textContent=cat.icon+' '+cat.name+' がレベルアップ！';
+  document.getElementById('lu-lv').textContent='Lv '+newLevel;
+  var starsEl=document.getElementById('lu-stars');
+  starsEl.innerHTML='';
+  for(var i=0;i<14;i++){
+    var s=document.createElement('div');s.className='lu-star';
+    s.textContent=['⭐','✨','💫','🌟'][Math.floor(Math.random()*4)];
+    s.style.left=Math.random()*100+'%';s.style.top=(30+Math.random()*60)+'%';
+    s.style.animationDelay=(Math.random()*.5)+'s';s.style.animationDuration=(.5+Math.random()*.7)+'s';
+    starsEl.appendChild(s);
+  }
+  document.getElementById('lu-modal').classList.add('open');
+}
+function closeLuModal(){
+  document.getElementById('lu-modal').classList.remove('open');
+  var cat=CATS.find(function(c){return c.key===selectedCat;});
+  if(cat)showToast('🎉 '+cat.name+' レベルアップ！おめでとう！');
+}
+
+/* ============================================================ トースト */
+function showToast(msg,ms){
+  ms=ms||2500;var t=document.getElementById('toast');
+  t.textContent=msg;t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(function(){t.style.transform='translateX(-50%) translateY(60px)';},ms);
+}
+
+/* ============================================================ あいさつ */
+function updateGreeting(){
+  var h=new Date().getHours();
+  var g=h<12?'おはよう ☀️':h<18?'こんにちは 🌤️':'こんばんは 🌙';
+  document.getElementById('greeting-text').textContent=g;
+}
+
+/* ============================================================ HTMLエスケープ */
+function escHtml(s){
+  if(!s)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+/* ============================================================ 初期化 */
+(function init(){
+  updateGreeting();
+  buildCatGrid();
+  var data=loadData();
+  initRadar(data);
+  renderAll(data);
+  selectCat('strength');
+})();
+</script>
+</body>
+</html>
