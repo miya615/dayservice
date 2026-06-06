@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>リアル人生ゲーム ⚔️</title>
+<style>
+/* ============================================================
+   リセット & 変数
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* カラーパレット（RPGダーク） */
+  --bg:        #0d0f1a;
+  --bg2:       #151828;
+  --bg3:       #1e2235;
+  --border:    #2a2f4a;
+  --text:      #e8eaf6;
+  --muted:     #7a82b0;
+  --gold:      #f5c842;
+  --gold-d:    #c9a020;
+  --cyan:      #4fc3f7;
+  --green:     #69f0ae;
+  --red:       #ff5252;
+  --purple:    #ce93d8;
+
+  /* カテゴリカラー */
+  --c0: #ff6b6b; /* 筋力 */
+  --c1: #ffd93d; /* 知識 */
+  --c2: #6bcb77; /* お金 */
+  --c3: #4d96ff; /* 健康 */
+  --c4: #ff922b; /* 人間関係 */
+  --c5: #cc5de8; /* 副業 */
+  --c6: #339af0; /* メンタル */
+
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --ease: .2s ease;
+}
+
+html { height: 100%; }
+body {
+  font-family: 'Segoe UI', 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+input, select, textarea { font-family: inherit; outline: none; }
+
+/* ============================================================
+   アニメーション
+   ============================================================ */
+@keyframes fadeUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes popIn    { from { opacity:0; transform:scale(.9); }         to { opacity:1; transform:scale(1); } }
+@keyframes glow     { 0%,100%{box-shadow:0 0 8px var(--gold);}  50%{box-shadow:0 0 24px var(--gold), 0 0 40px var(--gold-d);} }
+@keyframes levelUp  { 0%{transform:scale(1);} 40%{transform:scale(1.22);} 80%{transform:scale(.96);} 100%{transform:scale(1);} }
+@keyframes shimmer  { 0%{background-position:200% center;} 100%{background-position:-200% center;} }
+@keyframes stars    { from{transform:translateY(0);opacity:1;} to{transform:translateY(-120px);opacity:0;} }
+@keyframes slideIn  { from{opacity:0;transform:translateX(-20px);} to{opacity:1;transform:translateX(0);} }
+@keyframes ping     { 0%{transform:scale(1);opacity:.8;} 100%{transform:scale(2.4);opacity:0;} }
+
+/* ============================================================
+   レイアウト
+   ============================================================ */
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+/* ============================================================
+   ヘッダー
+   ============================================================ */
+.header {
+  text-align: center;
+  padding: 30px 0 24px;
+  animation: fadeUp .5s ease;
+}
+.header__title {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  background: linear-gradient(90deg, var(--gold), #ff9f43, var(--gold));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+  text-shadow: none;
+}
+.header__sub {
+  font-size: .82rem;
+  color: var(--muted);
+  margin-top: 4px;
+  letter-spacing: .06em;
+}
+
+/* ============================================================
+   全体レベルバナー
+   ============================================================ */
+.overall-card {
+  background: linear-gradient(135deg, #1a1e35 0%, #0f1225 100%);
+  border: 1px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp .5s ease .1s both;
+  box-shadow: 0 0 30px rgba(245,200,66,.12);
+}
+.overall-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 50%, rgba(245,200,66,.07) 0%, transparent 60%);
+  pointer-events: none;
+}
+.overall-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold-d), var(--gold));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 20px rgba(245,200,66,.4);
+  animation: glow 2s ease-in-out infinite;
+}
+.overall-badge__lv  { font-size: .6rem; font-weight: 700; color: #4a3000; letter-spacing: .1em; }
+.overall-badge__num { font-size: 1.6rem; font-weight: 900; color: #1a0e00; line-height: 1.1; }
+.overall-info { flex: 1; min-width: 0; }
+.overall-info__title { font-size: .75rem; color: var(--muted); margin-bottom: 3px; letter-spacing: .06em; }
+.overall-info__name  { font-size: 1.1rem; font-weight: 800; color: var(--gold); margin-bottom: 10px; }
+.overall-xp-bar { height: 10px; background: var(--bg3); border-radius: 50px; overflow: hidden; margin-bottom: 4px; }
+.overall-xp-fill {
+  height: 100%;
+  border-radius: 50px;
+  background: linear-gradient(90deg, var(--gold-d), var(--gold), #fff6a0);
+  transition: width .6s cubic-bezier(.22,1,.36,1);
+}
+.overall-xp-text { font-size: .72rem; color: var(--muted); }
+.overall-total-xp {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   入力フォーム
+   ============================================================ */
+.form-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  margin-bottom: 24px;
+  animation: fadeUp .5s ease .15s both;
+}
+.form-card__title {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: .08em;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group.full { grid-column: 1/-1; }
+.form-group label {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.form-group input,
+.form-group select {
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 13px;
+  color: var(--text);
+  font-size: .92rem;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(79,195,247,.15);
+}
+.form-group input::placeholder { color: var(--muted); }
+
+/* カテゴリ選択ボタン */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cat-btn {
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 9px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--ease);
+  user-select: none;
+}
+.cat-btn:hover { transform: translateY(-2px); }
+.cat-btn__icon { font-size: 1.3rem; }
+.cat-btn.selected { color: #fff; font-weight: 700; border-color: transparent; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+
+/* 経験値スライダー行 */
+.xp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.xp-input {
+  width: 80px;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--gold) !important;
+}
+.xp-quick { display: flex; gap: 6px; flex-wrap: wrap; }
+.xp-quick-btn {
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  padding: 4px 12px;
+  font-size: .76rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--ease);
+}
+.xp-quick-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* 追加ボタン */
+.add-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, #1a3a5c, #0d2040);
+  border: 1.5px solid var(--cyan);
+  color: var(--cyan);
+  font-size: .95rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: all var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 0 14px rgba(79,195,247,.15);
+}
+.add-btn:hover {
+  background: linear-gradient(135deg, #234e7a, #122b54);
+  box-shadow: 0 0 24px rgba(79,195,247,.3);
+  transform: translateY(-2px);
+}
+.add-btn:active { transform: translateY(0) scale(.98); }
+
+/* ============================================================
+   カテゴリカード群
+   ============================================================ */
+.section-title {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.cat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+  animation: fadeUp .5s ease .2s both;
+}
+.cat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--ease), box-shadow var(--ease);
+}
+.cat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.cat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+}
+/* カテゴリごとの上端ライン */
+.cat-card[data-cat="0"]::before { background: var(--c0); }
+.cat-card[data-cat="1"]::before { background: var(--c1); }
+.cat-card[data-cat="2"]::before { background: var(--c2); }
+.cat-card[data-cat="3"]::before { background: var(--c3); }
+.cat-card[data-cat="4"]::before { background: var(--c4); }
+.cat-card[data-cat="5"]::before { background: var(--c5); }
+.cat-card[data-cat="6"]::before { background: var(--c6); }
+
+.cat-card__header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.cat-card__icon {
+  width: 40px; height: 40px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.cat-card__name   { font-size: .88rem; font-weight: 700; }
+.cat-card__lv     { font-size: .7rem;  color: var(--muted); }
+.cat-card__lv span { font-weight: 700; font-size: .85rem; }
+
+.cat-card__xp-bar { height: 7px; background: var(--bg3); border-radius: 50px; overflow: hidden; margin-bottom: 5px; }
+.cat-card__xp-fill { height: 100%; border-radius: 50px; transition: width .6s cubic-bezier(.22,1,.36,1); }
+.cat-card__xp-text { font-size: .68rem; color: var(--muted); display: flex; justify-content: space-between; }
+
+/* レベルアップ時アニメ */
+.cat-card.level-up { animation: levelUp .5s ease; }
+
+/* ============================================================
+   行動履歴
+   ============================================================ */
+.history-section { animation: fadeUp .5s ease .25s both; }
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slideIn .3s ease;
+  transition: background var(--ease);
+}
+.history-item:hover { background: var(--bg3); }
+.history-cat-badge {
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.history-body { flex: 1; min-width: 0; }
+.history-action { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-meta   { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+.history-xp {
+  font-size: .85rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.history-del {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: .85rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all var(--ease);
+  flex-shrink: 0;
+}
+.history-del:hover { background: rgba(255,82,82,.2); color: var(--red); }
+.history-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+.history-empty__icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+/* ============================================================
+   レベルアップモーダル
+   ============================================================ */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 900;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.lu-modal {
+  background: linear-gradient(135deg, #1a1030 0%, #0d0820 100%);
+  border: 2px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: 36px 30px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 0 60px rgba(245,200,66,.3);
+  position: relative;
+  overflow: hidden;
+}
+.lu-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(245,200,66,.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.lu-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lu-star {
+  position: absolute;
+  font-size: 1.2rem;
+  animation: stars .8s ease-out both;
+}
+.lu-crown  { font-size: 3rem; display: block; margin-bottom: 8px; }
+.lu-title  { font-size: 1.6rem; font-weight: 900; color: var(--gold); margin-bottom: 6px; letter-spacing: .06em; }
+.lu-cat    { font-size: 1rem;  color: var(--text); margin-bottom: 12px; font-weight: 700; }
+.lu-lv     { font-size: 3.5rem; font-weight: 900; color: var(--gold); line-height: 1; text-shadow: 0 0 30px var(--gold-d); }
+.lu-close  {
+  margin-top: 22px;
+  padding: 11px 40px;
+  background: linear-gradient(135deg, var(--gold-d), var(--gold));
+  border-radius: 50px;
+  color: #1a0e00;
+  font-size: .92rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--ease);
+  box-shadow: 0 4px 16px rgba(245,200,66,.3);
+}
+.lu-close:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(245,200,66,.45); }
+
+/* ============================================================
+   トースト
+   ============================================================ */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 11px 22px;
+  border-radius: 50px;
+  font-size: .84rem;
+  font-weight: 600;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5);
+  z-index: 9999;
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   スクロールバー
+   ============================================================ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 50px; }
+
+/* ============================================================
+   レスポンシブ
+   ============================================================ */
+@media (max-width: 600px) {
+  .header__title { font-size: 1.5rem; }
+  .overall-card  { flex-wrap: wrap; gap: 14px; }
+  .form-row      { grid-template-columns: 1fr; }
+  .form-group.full { grid-column: 1; }
+  .cat-grid      { grid-template-columns: repeat(4, 1fr); }
+  .cat-btn       { font-size: .7rem; padding: 8px 4px; }
+  .cat-cards     { grid-template-columns: 1fr 1fr; }
+  .overall-total-xp { width: 100%; text-align: left; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== ヘッダー ===== -->
+  <div class="header">
+    <div class="header__title">⚔️ リアル人生ゲーム ⚔️</div>
+    <div class="header__sub">現実の行動を経験値に変えよう</div>
+  </div>
+
+  <!-- ===== 全体レベル ===== -->
+  <div class="overall-card" id="overall-card">
+    <div class="overall-badge">
+      <div class="overall-badge__lv">LV</div>
+      <div class="overall-badge__num" id="overall-lv">1</div>
+    </div>
+    <div class="overall-info">
+      <div class="overall-info__title">OVERALL LEVEL</div>
+      <div class="overall-info__name" id="overall-title">見習い冒険者</div>
+      <div class="overall-xp-bar">
+        <div class="overall-xp-fill" id="overall-xp-fill" style="width:0%"></div>
+      </div>
+      <div class="overall-xp-text" id="overall-xp-text">0 / 100 XP</div>
+    </div>
+    <div class="overall-total-xp" id="overall-total-xp">TOTAL: 0 XP</div>
+  </div>
+
+  <!-- ===== 行動入力フォーム ===== -->
+  <div class="form-card">
+    <div class="form-card__title">
+      <span>⚡</span> 今日やった行動を入力
+    </div>
+
+    <!-- カテゴリ選択 -->
+    <div style="margin-bottom:10px">
+      <label style="font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:8px;">カテゴリを選択</label>
+      <div class="cat-grid" id="cat-grid">
+        <!-- JS で生成 -->
+      </div>
+    </div>
+
+    <!-- 行動テキスト & 経験値 -->
+    <div class="form-row">
+      <div class="form-group full">
+        <label>行動を入力 <span style="color:var(--red)">*</span></label>
+        <input type="text" id="action-input" placeholder="例：腕立て伏せを50回やった" maxlength="80"/>
+      </div>
+      <div class="form-group">
+        <label>経験値（XP）</label>
+        <div class="xp-row">
+          <input class="form-group input xp-input" type="number" id="xp-input"
+            min="1" max="9999" value="10"
+            style="background:var(--bg3);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 13px;color:var(--gold);font-size:1.1rem;font-weight:700;width:80px;text-align:center;"/>
+          <div class="xp-quick">
+            <button class="xp-quick-btn" onclick="setXp(10)">+10</button>
+            <button class="xp-quick-btn" onclick="setXp(25)">+25</button>
+            <button class="xp-quick-btn" onclick="setXp(50)">+50</button>
+            <button class="xp-quick-btn" onclick="setXp(100)">+100</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 追加ボタン -->
+    <button class="add-btn" id="add-btn" onclick="addAction()">
+      <span>＋</span> 経験値を獲得する
+    </button>
+  </div>
+
+  <!-- ===== カテゴリカード ===== -->
+  <div class="section-title">カテゴリ別ステータス</div>
+  <div class="cat-cards" id="cat-cards">
+    <!-- JS で生成 -->
+  </div>
+
+  <!-- ===== 行動履歴 ===== -->
+  <div class="history-section">
+    <div class="section-title">行動履歴</div>
+    <div class="history-list" id="history-list">
+      <!-- JS で生成 -->
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ===== レベルアップモーダル ===== -->
+<div class="modal-overlay" id="lu-modal">
+  <div class="lu-modal">
+    <div class="lu-stars" id="lu-stars"></div>
+    <span class="lu-crown">👑</span>
+    <div class="lu-title">LEVEL UP!</div>
+    <div class="lu-cat" id="lu-cat">筋力がレベルアップ！</div>
+    <div class="lu-lv" id="lu-lv">2</div>
+    <button class="lu-close" onclick="closeLuModal()">OK！続ける</button>
+  </div>
+</div>
+
+<!-- ===== トースト ===== -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   定数定義
+   ============================================================ */
+// カテゴリ一覧（アイコン・名前・カラー変数）
+var CATS = [
+  { key:'strength',   name:'筋力',   icon:'💪', color:'var(--c0)' },
+  { key:'knowledge',  name:'知識',   icon:'📚', color:'var(--c1)' },
+  { key:'money',      name:'お金',   icon:'💰', color:'var(--c2)' },
+  { key:'health',     name:'健康',   icon:'❤️', color:'var(--c3)' },
+  { key:'social',     name:'人間関係', icon:'🤝', color:'var(--c4)' },
+  { key:'business',   name:'副業',   icon:'🚀', color:'var(--c5)' },
+  { key:'mental',     name:'メンタル', icon:'🧘', color:'var(--c6)' },
+];
+
+// 全体レベル称号テーブル（レベルに対応する称号）
+var TITLES = [
+  '',            // 0（未使用）
+  '見習い冒険者',  // 1
+  '駆け出し冒険者',// 2
+  '冒険者',       // 3
+  '熟練冒険者',   // 4
+  '上級冒険者',   // 5
+  '勇者',        // 6
+  '英雄',        // 7
+  '伝説の英雄',   // 8
+  '神話の勇者',   // 9
+  '✨ 神',       // 10以上
+];
+
+// 1レベルに必要な経験値
+var XP_PER_LEVEL = 100;
+
+// localStorage キー
+var STORAGE_KEY = 'realLifeGame_v1';
+
+/* ============================================================
+   データ管理
+   ============================================================ */
+
+// データをlocalStorageから読み込む
+function loadData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || createInitData();
+  } catch(e) {
+    return createInitData();
+  }
+}
+
+// 初期データ構造を作成する
+function createInitData() {
+  var cats = {};
+  CATS.forEach(function(c) {
+    cats[c.key] = { xp: 0, level: 1 };
+  });
+  return { cats: cats, history: [] };
+}
+
+// データをlocalStorageに保存する
+function saveData(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(e) {
+    showToast('⚠️ 保存に失敗しました');
+  }
+}
+
+// カテゴリの現在レベルを計算する（経験値 ÷ 100 の切り捨て + 1）
+function calcLevel(xp) {
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
+}
+
+// 現在のレベル内での経験値進捗を計算する（0〜99）
+function calcXpInLevel(xp) {
+  return xp % XP_PER_LEVEL;
+}
+
+// 全体レベルを計算する（全カテゴリの合計経験値を元に算出）
+function calcOverallLevel(data) {
+  var totalXp = 0;
+  CATS.forEach(function(c) { totalXp += data.cats[c.key].xp; });
+  return { level: calcLevel(totalXp), xpInLevel: calcXpInLevel(totalXp), totalXp: totalXp };
+}
+
+/* ============================================================
+   選択状態（どのカテゴリが選ばれているか）
+   ============================================================ */
+var selectedCat = null; // 選択中のカテゴリキー
+
+/* ============================================================
+   UI 構築
+   ============================================================ */
+
+// カテゴリ選択グリッドを生成する
+function buildCatGrid() {
+  var grid = document.getElementById('cat-grid');
+  grid.innerHTML = CATS.map(function(c, i) {
+    return '<button class="cat-btn" data-cat="' + c.key + '" onclick="selectCat(\'' + c.key + '\')" style="--color:' + c.color + '">' +
+      '<span class="cat-btn__icon">' + c.icon + '</span>' +
+      '<span>' + c.name + '</span>' +
+    '</button>';
+  }).join('');
+}
+
+// カテゴリを選択する
+function selectCat(key) {
+  selectedCat = key;
+  // 選択状態を更新する
+  document.querySelectorAll('.cat-btn').forEach(function(btn) {
+    var k = btn.dataset.cat;
+    var cat = CATS.find(function(c) { return c.key === k; });
+    if(k === key) {
+      btn.classList.add('selected');
+      btn.style.background = cat.color;
+      btn.style.boxShadow = '0 0 14px ' + cat.color;
+    } else {
+      btn.classList.remove('selected');
+      btn.style.background = '';
+      btn.style.boxShadow = '';
+    }
+  });
+}
+
+// カテゴリカード一覧を描画する
+function renderCatCards(data, levelUpKey) {
+  var container = document.getElementById('cat-cards');
+  container.innerHTML = CATS.map(function(c, i) {
+    var catData = data.cats[c.key];
+    var lv = catData.level;
+    var xpInLv = calcXpInLevel(catData.xp);
+    var pct = (xpInLv / XP_PER_LEVEL) * 100;
+
+    return '<div class="cat-card' + (levelUpKey === c.key ? ' level-up' : '') + '" data-cat="' + i + '">' +
+      '<div class="cat-card__header">' +
+        '<div class="cat-card__icon" style="background:' + c.color + '22;color:' + c.color + '">' + c.icon + '</div>' +
+        '<div>' +
+          '<div class="cat-card__name">' + c.name + '</div>' +
+          '<div class="cat-card__lv">Lv <span style="color:' + c.color + '">' + lv + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cat-card__xp-bar">' +
+        '<div class="cat-card__xp-fill" style="width:' + pct + '%;background:' + c.color + '"></div>' +
+      '</div>' +
+      '<div class="cat-card__xp-text">' +
+        '<span>' + xpInLv + ' / ' + XP_PER_LEVEL + ' XP</span>' +
+        '<span>合計 ' + catData.xp + ' XP</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// 全体レベル表示を更新する
+function renderOverall(data) {
+  var o = calcOverallLevel(data);
+  var lv = o.level;
+  var pct = (o.xpInLevel / XP_PER_LEVEL) * 100;
+  var titleIdx = Math.min(lv, TITLES.length - 1);
+  var title = TITLES[titleIdx] || TITLES[TITLES.length - 1];
+
+  document.getElementById('overall-lv').textContent = lv;
+  document.getElementById('overall-title').textContent = title;
+  document.getElementById('overall-xp-fill').style.width = pct + '%';
+  document.getElementById('overall-xp-text').textContent = o.xpInLevel + ' / ' + XP_PER_LEVEL + ' XP';
+  document.getElementById('overall-total-xp').textContent = 'TOTAL: ' + o.totalXp + ' XP';
+}
+
+// 行動履歴リストを描画する
+function renderHistory(data) {
+  var list = document.getElementById('history-list');
+
+  if(data.history.length === 0) {
+    list.innerHTML = '<div class="history-empty">' +
+      '<span class="history-empty__icon">📜</span>' +
+      '<div>まだ行動がありません<br>最初の一歩を踏み出そう！</div>' +
+    '</div>';
+    return;
+  }
+
+  // 履歴は新しい順に表示する
+  var items = data.history.slice().reverse();
+  list.innerHTML = items.map(function(item) {
+    var cat = CATS.find(function(c) { return c.key === item.catKey; });
+    var catColor = cat ? cat.color : '#aaa';
+    var catIcon  = cat ? cat.icon  : '?';
+    var catName  = cat ? cat.name  : item.catKey;
+    var dateStr  = item.date ? item.date : '';
+
+    return '<div class="history-item" id="hist-' + item.id + '">' +
+      '<div class="history-cat-badge" style="background:' + catColor + '22;color:' + catColor + '">' + catIcon + '</div>' +
+      '<div class="history-body">' +
+        '<div class="history-action">' + escHtml(item.action) + '</div>' +
+        '<div class="history-meta">' + catName + ' ・ ' + dateStr + '</div>' +
+      '</div>' +
+      '<div class="history-xp" style="color:' + catColor + '">+' + item.xp + ' XP</div>' +
+      '<button class="history-del" onclick="deleteAction(\'' + item.id + '\')" title="削除">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+/* ============================================================
+   アクション追加
+   ============================================================ */
+function addAction() {
+  var actionText = document.getElementById('action-input').value.trim();
+  var xpVal = parseInt(document.getElementById('xp-input').value, 10);
+
+  // バリデーション
+  if(!selectedCat) { showToast('⚠️ カテゴリを選択してください'); return; }
+  if(!actionText)   { showToast('⚠️ 行動を入力してください'); return; }
+  if(isNaN(xpVal) || xpVal < 1) { showToast('⚠️ 経験値は1以上を入力してください'); return; }
+  if(xpVal > 9999) { showToast('⚠️ 経験値は9999以下にしてください'); return; }
+
+  var data = loadData();
+  var catData = data.cats[selectedCat];
+
+  // レベルアップ前のレベルを記録する
+  var lvBefore = calcLevel(catData.xp);
+
+  // 経験値を加算する
+  catData.xp += xpVal;
+  catData.level = calcLevel(catData.xp);
+
+  // レベルアップしたか確認する
+  var lvAfter = calcLevel(catData.xp);
+  var didLevelUp = lvAfter > lvBefore;
+
+  // 履歴に追加する
+  var now = new Date();
+  var dateStr = now.getFullYear() + '/' +
+    String(now.getMonth() + 1).padStart(2, '0') + '/' +
+    String(now.getDate()).padStart(2, '0') + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0');
+
+  data.history.push({
+    id: Date.now().toString(),
+    catKey: selectedCat,
+    action: actionText,
+    xp: xpVal,
+    date: dateStr,
+  });
+
+  saveData(data);
+
+  // 画面を更新する
+  renderCatCards(data, didLevelUp ? selectedCat : null);
+  renderOverall(data);
+  renderHistory(data);
+
+  // 入力をリセットする
+  document.getElementById('action-input').value = '';
+
+  if(didLevelUp) {
+    // レベルアップ演出を表示する
+    showLevelUp(selectedCat, lvAfter);
+  } else {
+    var cat = CATS.find(function(c) { return c.key === selectedCat; });
+    showToast('⚡ ' + (cat ? cat.name : '') + ' に +' + xpVal + ' XP 獲得！');
+  }
+}
+
+/* ============================================================
+   行動削除
+   ============================================================ */
+function deleteAction(id) {
+  if(!confirm('この行動を削除しますか？\n経験値も戻ります。')) return;
+
+  var data = loadData();
+
+  // 削除対象の履歴を探す
+  var idx = data.history.findIndex(function(h) { return h.id === id; });
+  if(idx === -1) { showToast('⚠️ 見つかりませんでした'); return; }
+
+  var item = data.history[idx];
+
+  // 経験値を戻す（マイナスにはならないようにする）
+  var catData = data.cats[item.catKey];
+  catData.xp = Math.max(0, catData.xp - item.xp);
+  catData.level = calcLevel(catData.xp);
+
+  // 履歴から削除する
+  data.history.splice(idx, 1);
+  saveData(data);
+
+  // 画面を更新する
+  renderCatCards(data, null);
+  renderOverall(data);
+  renderHistory(data);
+
+  showToast('🗑️ 削除しました（-' + item.xp + ' XP）');
+}
+
+/* ============================================================
+   経験値クイック入力
+   ============================================================ */
+function setXp(val) {
+  document.getElementById('xp-input').value = val;
+}
+
+/* ============================================================
+   レベルアップ演出
+   ============================================================ */
+function showLevelUp(catKey, newLevel) {
+  var cat = CATS.find(function(c) { return c.key === catKey; });
+  if(!cat) return;
+
+  document.getElementById('lu-cat').textContent = cat.icon + ' ' + cat.name + ' がレベルアップ！';
+  document.getElementById('lu-lv').textContent = 'Lv ' + newLevel;
+
+  // 星エフェクトを生成する
+  var starsEl = document.getElementById('lu-stars');
+  starsEl.innerHTML = '';
+  for(var i = 0; i < 12; i++) {
+    var star = document.createElement('div');
+    star.className = 'lu-star';
+    star.textContent = ['⭐','✨','💫','🌟'][Math.floor(Math.random() * 4)];
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top  = (40 + Math.random() * 50) + '%';
+    star.style.animationDelay = (Math.random() * 0.4) + 's';
+    star.style.animationDuration = (0.6 + Math.random() * 0.6) + 's';
+    starsEl.appendChild(star);
+  }
+
+  document.getElementById('lu-modal').classList.add('open');
+}
+
+function closeLuModal() {
+  document.getElementById('lu-modal').classList.remove('open');
+  var cat = CATS.find(function(c) { return c.key === selectedCat; });
+  if(cat) showToast('🎉 ' + cat.name + ' レベルアップ！おめでとう！');
+}
+
+/* ============================================================
+   トースト通知
+   ============================================================ */
+function showToast(msg, ms) {
+  ms = ms || 2500;
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.transform = 'translateX(-50%) translateY(0)';
+  setTimeout(function() {
+    t.style.transform = 'translateX(-50%) translateY(80px)';
+  }, ms);
+}
+
+/* ============================================================
+   HTMLエスケープ（XSS対策）
+   ============================================================ */
+function escHtml(str) {
+  if(!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/* ============================================================
+   初期化
+   ============================================================ */
+(function init() {
+  // カテゴリ選択グリッドを生成する
+  buildCatGrid();
+
+  // 保存済みデータを読み込んで画面に描画する
+  var data = loadData();
+  renderCatCards(data, null);
+  renderOverall(data);
+  renderHistory(data);
+
+  // デフォルトのカテゴリを「筋力」にしておく
+  selectCat('strength');
+})();
+</script>
+</body>
+</html>
