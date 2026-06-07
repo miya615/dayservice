@@ -522,22 +522,27 @@ function deleteRecord(id) { setData(getData().filter(r=>r.id!==id)); }
 function updateRecord(u) { setData(getData().map(r=>r.id===u.id?u:r)); }
 
 // UTILS
-function getTodayStr() { return new Date().toISOString().slice(0,10); }
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function getTodayStr() { return localDateStr(new Date()); }
 function formatDate(ds) {
-  const d=new Date(ds+'T00:00:00'), now=new Date();
+  const d=new Date(ds+'T00:00:00');
   if (ds===getTodayStr()) return '今日';
-  const yest=new Date(now); yest.setDate(yest.getDate()-1);
-  if (ds===yest.toISOString().slice(0,10)) return '昨日';
+  const yest=new Date(); yest.setDate(yest.getDate()-1);
+  if (ds===localDateStr(yest)) return '昨日';
   return `${d.getMonth()+1}月${d.getDate()}日`;
 }
 function formatDuration(val, unit) { return val?`${val}${unit}`:''; }
 function getStreak(records) {
   if (!records.length) return 0;
   const dates=[...new Set(records.map(r=>r.date))].sort().reverse();
-  let streak=0, cur=getTodayStr();
+  let streak=0;
+  const cur=new Date();
   for (const d of dates) {
-    if (d===cur) { streak++; const dt=new Date(cur+'T00:00:00'); dt.setDate(dt.getDate()-1); cur=dt.toISOString().slice(0,10); }
-    else if (d<cur) break;
+    const expected=localDateStr(cur);
+    if (d===expected) { streak++; cur.setDate(cur.getDate()-1); }
+    else if (d<expected) break;
   }
   return streak;
 }
@@ -701,14 +706,14 @@ function renderDonut(records) {
 
 function renderWeekBars() {
   const all=getData(), days=['日','月','火','水','木','金','土'], bars=[];
-  for (let i=6;i>=0;i--) { const d=new Date(); d.setDate(d.getDate()-i); const ds=d.toISOString().slice(0,10); bars.push({label:days[d.getDay()],count:all.filter(r=>r.date===ds).length}); }
+  for (let i=6;i>=0;i--) { const d=new Date(); d.setDate(d.getDate()-i); const ds=localDateStr(d); bars.push({label:days[d.getDay()],count:all.filter(r=>r.date===ds).length}); }
   const max=Math.max(...bars.map(b=>b.count),1);
   document.getElementById('week-bar-card').innerHTML=`<div class="bar-chart">${bars.map(b=>`<div class="bar-row"><div class="bar-day">${b.label}</div><div class="bar-bg"><div class="bar-fill" style="width:${(b.count/max)*100}%"></div></div><div class="bar-val">${b.count}</div></div>`).join('')}</div>`;
 }
 
 function renderMoodTrend() {
   const all=getData(), days=['日','月','火','水','木','金','土'], cols=[];
-  for (let i=6;i>=0;i--) { const d=new Date(); d.setDate(d.getDate()-i); const ds=d.toISOString().slice(0,10); const recs=all.filter(r=>r.date===ds&&r.mood); cols.push({label:days[d.getDay()],mood:recs.length?recs[recs.length-1].mood:'—'}); }
+  for (let i=6;i>=0;i--) { const d=new Date(); d.setDate(d.getDate()-i); const ds=localDateStr(d); const recs=all.filter(r=>r.date===ds&&r.mood); cols.push({label:days[d.getDay()],mood:recs.length?recs[recs.length-1].mood:'—'}); }
   document.getElementById('mood-trend-card').innerHTML=`<div class="mood-trend">${cols.map(c=>`<div class="mood-col"><div class="mood-day-emoji">${c.mood}</div><div class="mood-day-lbl">${c.label}</div></div>`).join('')}</div>`;
 }
 
