@@ -54,9 +54,11 @@
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
                    "Hiragino Sans", "Hiragino Kaku Gothic ProN",
                    "Noto Sans JP", sans-serif;
-      background: #07061a;
+      background: #04051a;
       color: var(--text-pri);
       -webkit-font-smoothing: antialiased;
+      /* 背景色を時刻に合わせてゆっくり変化させる */
+      transition: background-color 90s ease;
     }
 
     /* ─────────────────────────────────────────
@@ -70,34 +72,66 @@
       pointer-events: none;
     }
 
-    /* ベースグラデーション */
-    .aurora::before {
-      content: '';
+    /* ── 時刻別アトモスフィアレイヤー ──
+       JSがopacity(0〜1)を書き換える。
+       transition: opacity 90s でじわじわ変化。
+    */
+    .atmos {
       position: absolute;
       inset: 0;
-      background:
-        radial-gradient(ellipse 120% 80% at 10% 0%,  rgba(76, 29,149,0.45) 0%, transparent 55%),
-        radial-gradient(ellipse 100% 70% at 90% 20%, rgba(14,116,144,0.30) 0%, transparent 55%),
-        radial-gradient(ellipse 80%  60% at 50% 80%, rgba(79, 70,229,0.25) 0%, transparent 55%);
+      opacity: 0;
+      transition: opacity 90s ease;
     }
 
-    /* 浮遊するオーブ */
+    /* 深夜〜明け方 (22:00 - 4:59) ── ネイビー */
+    #sky-night {
+      background:
+        radial-gradient(ellipse 130% 90% at 10% 0%,  rgba(76,  29, 149, 0.55) 0%, transparent 52%),
+        radial-gradient(ellipse 100% 70% at 88% 20%, rgba(14, 116, 144, 0.32) 0%, transparent 52%),
+        radial-gradient(ellipse  80% 60% at 50% 82%, rgba(79,  70, 229, 0.28) 0%, transparent 55%);
+    }
+    /* 朝 (5:00 - 9:59) ── 水色・シアン */
+    #sky-morning {
+      background:
+        radial-gradient(ellipse 130% 90% at 20% 0%,  rgba(  0, 130, 220, 0.55) 0%, transparent 52%),
+        radial-gradient(ellipse 100% 70% at 80% 25%, rgba(  0, 195, 235, 0.38) 0%, transparent 52%),
+        radial-gradient(ellipse  80% 60% at 50% 78%, rgba( 20, 150, 210, 0.28) 0%, transparent 55%);
+    }
+    /* 昼 (10:00 - 15:59) ── オレンジ・アンバー */
+    #sky-noon {
+      background:
+        radial-gradient(ellipse 130% 90% at 78% 0%,  rgba(215,  90,   5, 0.55) 0%, transparent 52%),
+        radial-gradient(ellipse 100% 70% at 22% 28%, rgba(235, 155,  20, 0.38) 0%, transparent 52%),
+        radial-gradient(ellipse  80% 60% at 55% 80%, rgba(190,  70,  10, 0.28) 0%, transparent 55%);
+    }
+    /* 夕暮れ (16:00 - 21:59) ── ピンク・マゼンタ */
+    #sky-dusk {
+      background:
+        radial-gradient(ellipse 130% 90% at 50% 0%,  rgba(195,  40, 100, 0.55) 0%, transparent 52%),
+        radial-gradient(ellipse 100% 70% at 88% 35%, rgba(225,  85,  25, 0.38) 0%, transparent 52%),
+        radial-gradient(ellipse  80% 60% at 18% 72%, rgba(155,  30, 135, 0.28) 0%, transparent 55%);
+    }
+
+    /* 浮遊するオーブ（常時表示、時刻に合わせて色を変化） */
     .orb {
       position: absolute;
       border-radius: 50%;
       filter: blur(70px);
       animation: orb-float var(--dur, 10s) ease-in-out infinite;
       animation-delay: var(--delay, 0s);
+      /* 色変化をなめらかに */
+      transition: background-color 90s ease;
     }
-    .orb-a { width:380px; height:380px; top:-15%; left:-20%;  background: radial-gradient(circle, rgba(109,40,217,0.55), transparent 70%); --dur:11s; }
-    .orb-b { width:320px; height:320px; top:25%;  right:-18%; background: radial-gradient(circle, rgba(6,182,212,0.40),  transparent 70%); --dur:9s;  --delay:-3s; }
-    .orb-c { width:280px; height:280px; bottom:15%; left:15%; background: radial-gradient(circle, rgba(16,185,129,0.35), transparent 70%); --dur:13s; --delay:-6s; }
-    .orb-d { width:240px; height:240px; bottom:-5%; right:5%; background: radial-gradient(circle, rgba(139,92,246,0.45),  transparent 70%); --dur:8s;  --delay:-2s; }
+    /* 初期値: 夜カラー。JSがbgColorを直接更新する */
+    .orb-a { width:380px; height:380px; top:-15%;   left:-20%;  background-color: rgba(109, 40,217,0.55); --dur:11s; }
+    .orb-b { width:320px; height:320px; top:25%;    right:-18%; background-color: rgba(  6,182,212,0.40); --dur:9s;  --delay:-3s; }
+    .orb-c { width:280px; height:280px; bottom:15%; left:15%;   background-color: rgba( 16,185,129,0.35); --dur:13s; --delay:-6s; }
+    .orb-d { width:240px; height:240px; bottom:-5%; right:5%;   background-color: rgba(139, 92,246,0.45); --dur:8s;  --delay:-2s; }
 
     @keyframes orb-float {
-      0%,100% { transform: translate(0,0)    scale(1);    }
-      33%     { transform: translate(24px,-32px) scale(1.06); }
-      66%     { transform: translate(-18px,22px) scale(0.94); }
+      0%,100% { transform: translate(0,0)        scale(1);    }
+      33%     { transform: translate(24px,-32px)  scale(1.06); }
+      66%     { transform: translate(-18px,22px)  scale(0.94); }
     }
 
     /* ─────────────────────────────────────────
@@ -813,6 +847,12 @@
 
 <!-- ── オーロラ背景 ── -->
 <div class="aurora">
+  <!-- 時刻別アトモスフィア（JSがopacityを制御） -->
+  <div class="atmos" id="sky-night"></div>
+  <div class="atmos" id="sky-morning"></div>
+  <div class="atmos" id="sky-noon"></div>
+  <div class="atmos" id="sky-dusk"></div>
+  <!-- 浮遊オーブ（JSが色を制御） -->
   <div class="orb orb-a"></div>
   <div class="orb orb-b"></div>
   <div class="orb orb-c"></div>
@@ -1262,6 +1302,85 @@
       setTimeout(renderBarChart, 420);
     }
   }
+
+  /* ============================================================
+     空の色 — 時刻連動システム
+     4つのアトモスフィアレイヤー(night/morning/noon/dusk)の
+     opacityをガウス補間で制御し、背景色とオーブ色も追従させる
+  ============================================================ */
+
+  /**
+   * 時刻(小数時刻 0〜24)から4時間帯のウェイト(合計=1)を返す。
+   * ガウス型補間で境界をなめらかにブレンドする。
+   */
+  function skyWeights(h) {
+    const periods = [
+      { key: 'night',   center:  2.0, half: 3.0 },
+      { key: 'morning', center:  7.5, half: 2.5 },
+      { key: 'noon',    center: 13.0, half: 3.0 },
+      { key: 'dusk',    center: 18.5, half: 2.5 },
+    ];
+    function gauss(x, center, half) {
+      const d = Math.min(
+        Math.abs(x - center),
+        Math.abs(x - center + 24),
+        Math.abs(x - center - 24)
+      );
+      return Math.exp(-(d * d) / (2 * half * half));
+    }
+    const raw = {}; let sum = 0;
+    for (const p of periods) { raw[p.key] = gauss(h, p.center, p.half); sum += raw[p.key]; }
+    const w = {};
+    for (const p of periods) w[p.key] = raw[p.key] / sum;
+    return w;
+  }
+
+  // ボディ背景色テーブル [r,g,b]
+  const SKY_BG = {
+    night:   [  4,  5, 26],
+    morning: [  3, 16, 32],
+    noon:    [ 22, 10,  1],
+    dusk:    [ 12,  4, 22],
+  };
+
+  // オーブカラーテーブル [r,g,b,a] × 4オーブ
+  const SKY_ORBS = {
+    night:   [[109,40,217,0.55],[  6,182,212,0.40],[ 16,185,129,0.35],[139, 92,246,0.45]],
+    morning: [[  0,140,230,0.60],[  0,200,240,0.50],[ 20,160,220,0.40],[ 10, 90,210,0.50]],
+    noon:    [[215, 95,  5,0.55],[235,160, 20,0.48],[190, 75, 10,0.40],[220,105, 15,0.50]],
+    dusk:    [[195, 45,105,0.55],[220, 85, 30,0.48],[150, 30,145,0.40],[175, 55,100,0.50]],
+  };
+
+  const SKY_KEYS = ['night','morning','noon','dusk'];
+
+  function updateSky() {
+    const now = new Date();
+    const h   = now.getHours() + now.getMinutes() / 60;
+    const w   = skyWeights(h);
+
+    // アトモスフィアレイヤーの opacity
+    SKY_KEYS.forEach(k => {
+      document.getElementById('sky-' + k).style.opacity = w[k];
+    });
+
+    // ボディ背景色をブレンド
+    const bg = [0,1,2].map(i =>
+      Math.round(SKY_KEYS.reduce((s, k) => s + SKY_BG[k][i] * w[k], 0))
+    );
+    document.body.style.backgroundColor = `rgb(${bg.join(',')})`;
+
+    // オーブカラーをブレンド
+    ['orb-a','orb-b','orb-c','orb-d'].forEach((cls, i) => {
+      const rgba = [0,1,2,3].map(ch =>
+        SKY_KEYS.reduce((s, k) => s + SKY_ORBS[k][i][ch] * w[k], 0)
+      );
+      document.querySelector('.' + cls).style.backgroundColor =
+        `rgba(${Math.round(rgba[0])},${Math.round(rgba[1])},${Math.round(rgba[2])},${rgba[3].toFixed(2)})`;
+    });
+  }
+
+  updateSky();                        // 即時適用
+  setInterval(updateSky, 60_000);    // 毎分更新
 
   /* ============================================================
      グリーティング & 日付
