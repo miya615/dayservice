@@ -446,10 +446,48 @@ a{text-decoration:none;color:inherit}
   .rec-actions{flex-direction:row;width:100%;justify-content:flex-end}
 }
 @media(min-width:701px){.sb-overlay,.menu-btn{display:none!important}}
+
+/* ============================================================ ロック画面 */
+#lock-screen{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.lock-card{background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:40px 36px;width:100%;max-width:400px;text-align:center}
+.lock-icon{font-size:3rem;margin-bottom:16px}
+.lock-title{font-size:1.45rem;font-weight:700;color:var(--text);margin-bottom:6px}
+.lock-sub{font-size:.85rem;color:var(--muted);margin-bottom:28px}
+.lock-input{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:1rem;font-family:var(--font);background:var(--bg);color:var(--text);margin-bottom:12px;transition:border-color var(--ease)}
+.lock-input:focus{outline:none;border-color:var(--g)}
+.lock-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--g),var(--g-d));color:#fff;border-radius:var(--r-sm);font-size:1rem;font-weight:700;cursor:pointer;border:none;font-family:var(--font);transition:opacity var(--ease)}
+.lock-btn:hover{opacity:.9}
+.lock-err{color:var(--red);font-size:.83rem;margin-top:8px;display:none}
+/* ============================================================ ローディングオーバーレイ */
+#loading-overlay{position:fixed;inset:0;z-index:9998;background:rgba(253,247,240,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;backdrop-filter:blur(4px)}
+.ld-spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--g);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-text{font-size:.9rem;font-weight:600;color:var(--muted)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<div class="app">
+
+<!-- ロック画面 -->
+<div id="lock-screen">
+  <div class="lock-card">
+    <div class="lock-icon">🌿</div>
+    <div class="lock-title">外出レク管理システム</div>
+    <div class="lock-sub">パスワードを入力してください</div>
+    <input class="lock-input" id="lock-pw" type="password" placeholder="パスワード"
+      onkeydown="if(event.key==='Enter')tryUnlock()"/>
+    <button class="lock-btn" onclick="tryUnlock()">開く</button>
+    <div class="lock-err" id="lock-err">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- ローディングオーバーレイ -->
+<div id="loading-overlay">
+  <div class="ld-spinner"></div>
+  <div class="ld-text">読み込み中...</div>
+</div>
+
+<div class="app" id="app-wrap" style="display:none">
 
 <!-- ========== サイドバー ========== -->
 <aside class="sidebar" id="sidebar">
@@ -485,6 +523,9 @@ a{text-decoration:none;color:inherit}
     <div class="sb-section">管理</div>
     <div class="nav-item" onclick="openDataModal()">
       <span class="ni">🗄️</span> データ管理
+    </div>
+    <div class="nav-item" onclick="lockApp()" style="color:var(--muted)">
+      <span class="ni">🔒</span> ロック
     </div>
   </nav>
 
@@ -710,6 +751,7 @@ a{text-decoration:none;color:inherit}
 
 </div><!-- /main -->
 </div><!-- /app -->
+</div><!-- /app-wrap -->
 
 <!-- 登録モーダル -->
 <div class="modal-overlay" id="m-reg" onclick="moc('m-reg',event)">
@@ -865,6 +907,59 @@ a{text-decoration:none;color:inherit}
 <script>
 'use strict';
 
+/* ============================================================ ★ 設定（ここを編集してください）★ */
+var SUPABASE_URL  = 'https://YOUR_PROJECT.supabase.co';   // SupabaseプロジェクトURL
+var SUPABASE_ANON = 'YOUR_ANON_KEY';                       // Supabase anon key
+var APP_PASSWORD  = 'dayservice2024';                       // 簡易ロックパスワード
+var AUTH_KEY      = 'ds_auth_v1';                           // sessionStorageキー
+
+/* ============================================================ Supabase クライアント */
+var _sb = null;
+function initSupabase(){
+  if(!window.supabase){showToast('⚠️ Supabase SDKが読み込まれていません');return;}
+  _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+}
+
+/* ============================================================ 認証 */
+function checkAuth(){
+  if(sessionStorage.getItem(AUTH_KEY)==='1'){showApp();}
+  // ロック画面はデフォルト表示なのでelseは不要
+}
+function tryUnlock(){
+  var pw=document.getElementById('lock-pw').value;
+  if(pw===APP_PASSWORD){
+    sessionStorage.setItem(AUTH_KEY,'1');
+    document.getElementById('lock-screen').style.display='none';
+    document.getElementById('lock-err').style.display='none';
+    showApp();
+  }else{
+    document.getElementById('lock-err').style.display='block';
+    document.getElementById('lock-pw').value='';
+    document.getElementById('lock-pw').focus();
+  }
+}
+function lockApp(){
+  sessionStorage.removeItem(AUTH_KEY);
+  document.getElementById('lock-screen').style.display='flex';
+  document.getElementById('lock-pw').value='';
+  document.getElementById('lock-err').style.display='none';
+}
+function showApp(){
+  initSupabase();
+  document.getElementById('app-wrap').style.display='';
+  showLoading(true);
+  loadAll().then(function(){
+    showLoading(false);
+    renderAll();
+    renderSidebar();
+  });
+}
+
+/* ============================================================ ローディング */
+function showLoading(on){
+  document.getElementById('loading-overlay').style.display=on?'flex':'none';
+}
+
 /* ============================================================ ユーティリティ */
 function showToast(msg,ms){ms=ms||2600;var t=document.getElementById('toast');t.textContent=msg;t.style.transform='translateX(-50%) translateY(0)';setTimeout(function(){t.style.transform='translateX(-50%) translateY(80px)';},ms);}
 function parseDate(ds){var d=new Date(ds+'T00:00:00');return{year:d.getFullYear(),month:d.getMonth()+1,day:d.getDate(),weekday:['日','月','火','水','木','金','土'][d.getDay()]};}
@@ -875,14 +970,39 @@ function mc(id){document.getElementById(id).classList.remove('open');}
 function moc(id,e){if(e.target.id===id)mc(id);}
 
 /* ============================================================ 定数 */
-var SK='dayservice_v8', SK_GAS='dayservice_gas_url';
+var SK_GAS='dayservice_gas_url';
 var CATS=['🌸 公園・自然','🛍️ ショッピング','🍽️ 飲食・外食','🏛️ 博物館・美術館','⛩️ 神社・寺院','🌊 海・川・湖','🎭 イベント・祭り','♨️ 温泉・健康','🌳 農業・収穫体験','🎪 レジャー施設','🏥 医療・リハビリ','🎓 学習・見学'];
 var RATINGS=['⭐⭐⭐⭐⭐ とても良かった','⭐⭐⭐⭐ 良かった','⭐⭐⭐ 普通','⭐⭐ やや不満','⭐ 改善が必要'];
 var CAT_EMOJI={'🌸 公園・自然':'🌸','🛍️ ショッピング':'🛍️','🍽️ 飲食・外食':'🍽️','🏛️ 博物館・美術館':'🏛️','⛩️ 神社・寺院':'⛩️','🌊 海・川・湖':'🌊','🎭 イベント・祭り':'🎭','♨️ 温泉・健康':'♨️','🌳 農業・収穫体験':'🌳','🎪 レジャー施設':'🎪','🏥 医療・リハビリ':'🏥','🎓 学習・見学':'🎓'};
 
-/* ============================================================ データ */
-function getR(){try{return JSON.parse(localStorage.getItem(SK)||'[]');}catch(e){return[];}}
-function saveR(rs){try{localStorage.setItem(SK,JSON.stringify(rs));return true;}catch(e){showToast('⚠️ 保存失敗（容量不足の可能性）');return false;}}
+/* ============================================================ データキャッシュ（Supabaseから取得した全件をここに保持） */
+var _records = [];
+function getR(){ return _records; }
+
+/* DB行（snake_case）→ JS オブジェクト（camelCase）*/
+function dbToJs(row){
+  return{id:row.id,date:row.date,place:row.place,parking:row.parking||'',
+    cost:row.cost||'',rating:row.rating||'',staff:row.staff||'',
+    tags:row.tags||[],note:row.note||'',url:row.url||'',
+    favorite:!!row.favorite,createdAt:row.created_at};
+}
+
+/* Supabaseから全件取得してキャッシュを更新 */
+async function loadAll(){
+  if(!_sb)return;
+  var res=await _sb.from('recreation_records').select('*')
+    .order('date',{ascending:false}).order('created_at',{ascending:false});
+  if(res.error){showToast('⚠️ データ取得に失敗しました：'+res.error.message);return;}
+  _records=(res.data||[]).map(dbToJs);
+}
+
+/* CRUDの共通後処理：キャッシュ更新 → 再描画 */
+async function _reload(){
+  showLoading(true);
+  await loadAll();
+  showLoading(false);
+  renderAll();renderSidebar();
+}
 
 /* ============================================================ タブ初期化 */
 function initTags(){
@@ -913,18 +1033,31 @@ function validateReg(){
 }
 
 /* ============================================================ レコード CRUD */
-function saveRecord(){
+async function saveRecord(){
   var core=validateReg();if(!core)return;
   var tags=Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(function(el){return el.value;});
-  var r={id:Date.now().toString(),date:core.date,place:core.place,parking:core.parking,
-    cost:document.getElementById('f-cost').value.trim()||'',
-    rating:document.getElementById('f-rating').value||'',
-    staff:document.getElementById('f-staff').value.trim()||'',
-    tags:tags,note:document.getElementById('f-note').value.trim()||'',
-    url:document.getElementById('f-url').value.trim()||'',
-    favorite:false,createdAt:new Date().toISOString()};
-  var rs=getR();rs.unshift(r);
-  if(saveR(rs)){showToast('✅ 登録しました：'+r.place);mc('m-reg');resetForm();renderAll();}
+  var row={date:core.date,place:core.place,parking:core.parking,
+    cost:document.getElementById('f-cost').value.trim()||null,
+    rating:document.getElementById('f-rating').value||null,
+    staff:document.getElementById('f-staff').value.trim()||null,
+    tags:tags.length?tags:null,
+    note:document.getElementById('f-note').value.trim()||null,
+    url:document.getElementById('f-url').value.trim()||null,
+    favorite:false};
+  var btn=document.querySelector('button[onclick="saveRecord()"]');
+  if(btn)btn.disabled=true;
+  try{
+    var res=await _sb.from('recreation_records').insert(row);
+    if(res.error)throw res.error;
+    showToast('✅ 登録しました：'+row.place);
+    mc('m-reg');resetForm();
+    await _reload();
+  }catch(e){
+    showToast('⚠️ 保存に失敗しました。通信環境を確認してください');
+    showLoading(false);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
 }
 function resetForm(){
   ['f-date','f-place','f-cost','f-staff','f-note','f-url'].forEach(function(id){document.getElementById(id).value='';});
@@ -934,17 +1067,38 @@ function resetForm(){
   ['f-date','f-place'].forEach(function(id){document.getElementById(id).classList.remove('input-error');});
   document.getElementById('f-date').value=todayStr();
 }
-function deleteRecord(id){
+async function deleteRecord(id){
   if(!confirm('この記録を削除しますか？'))return;
-  saveR(getR().filter(function(r){return r.id!==id;}));
-  mc('m-detail');renderAll();showToast('🗑️ 削除しました');
+  try{
+    var res=await _sb.from('recreation_records').delete().eq('id',id);
+    if(res.error)throw res.error;
+    mc('m-detail');
+    await _reload();
+    showToast('🗑️ 削除しました');
+  }catch(e){
+    showToast('⚠️ 削除に失敗しました。通信環境を確認してください');
+    showLoading(false);
+  }
 }
-function toggleFav(id){
-  var rs=getR(),r=null;
-  for(var i=0;i<rs.length;i++)if(rs[i].id===id){r=rs[i];break;}
+async function toggleFav(id){
+  var r=_records.find(function(x){return x.id===id;});
   if(!r)return;
-  r.favorite=!r.favorite;saveR(rs);renderAll();
-  showToast(r.favorite?'⭐ お気に入りに追加':'☆ お気に入りを解除');
+  var newFav=!r.favorite;
+  // 楽観的更新（即座にUI反映）
+  r.favorite=newFav;
+  renderAll();
+  showToast(newFav?'⭐ お気に入りに追加':'☆ お気に入りを解除');
+  try{
+    var res=await _sb.from('recreation_records').update({favorite:newFav}).eq('id',id);
+    if(res.error)throw res.error;
+    // バックグラウンドで整合性を保つ
+    loadAll().then(function(){renderSidebar();});
+  }catch(e){
+    // ロールバック
+    r.favorite=!newFav;
+    renderAll();
+    showToast('⚠️ 更新に失敗しました。通信環境を確認してください');
+  }
 }
 function testUrl(inputId){
   var url=document.getElementById(inputId).value.trim();
@@ -1377,23 +1531,34 @@ function openEditModal(id){
     +'<div class="form-group full"><label for="e-url">公式サイト URL</label><div class="url-wrap"><input type="url" id="e-url" value="'+esc(r.url||'')+'" placeholder="例：https://www.example.com"/><button class="url-confirm" onclick="testUrl(\'e-url\')">確認</button></div></div>';
   mo('m-edit');
 }
-function saveEdit(){
+async function saveEdit(){
   var date=document.getElementById('e-date').value.trim();
   var place=document.getElementById('e-place').value.trim();
   var park=document.querySelector('input[name="ep"]:checked');
   if(!date||!place||!park){showToast('⚠️ 日にち・場所・駐車場は必須です');return;}
   var tags=Array.from(document.querySelectorAll('input[name="ecat"]:checked')).map(function(el){return el.value;});
-  var rs=getR(),idx=-1;
-  for(var i=0;i<rs.length;i++)if(rs[i].id===_eid){idx=i;break;}
-  if(idx===-1)return;
-  rs[idx]=Object.assign({},rs[idx],{date:date,place:place,parking:park.value,
-    cost:document.getElementById('e-cost').value.trim()||'',
-    rating:document.getElementById('e-rating').value||'',
-    staff:document.getElementById('e-staff').value.trim()||'',
-    tags:tags,note:document.getElementById('e-note').value.trim()||'',
-    url:document.getElementById('e-url').value.trim()||'',
-    updatedAt:new Date().toISOString()});
-  saveR(rs);mc('m-edit');renderAll();showToast('✅ 更新しました：'+place);
+  var updates={date:date,place:place,parking:park.value,
+    cost:document.getElementById('e-cost').value.trim()||null,
+    rating:document.getElementById('e-rating').value||null,
+    staff:document.getElementById('e-staff').value.trim()||null,
+    tags:tags.length?tags:null,
+    note:document.getElementById('e-note').value.trim()||null,
+    url:document.getElementById('e-url').value.trim()||null,
+    updated_at:new Date().toISOString()};
+  var btn=document.querySelector('button[onclick="saveEdit()"]');
+  if(btn)btn.disabled=true;
+  try{
+    var res=await _sb.from('recreation_records').update(updates).eq('id',_eid);
+    if(res.error)throw res.error;
+    mc('m-edit');
+    await _reload();
+    showToast('✅ 更新しました：'+place);
+  }catch(e){
+    showToast('⚠️ 保存に失敗しました。通信環境を確認してください');
+    showLoading(false);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
 }
 
 /* ============================================================ 登録モーダルを開く */
@@ -1460,11 +1625,25 @@ function showImportPreview(){
   html+='</table><p style="margin-top:5px;font-size:.75rem;color:var(--muted)">'+_importData.length+'件のデータが見つかりました</p>';
   document.getElementById('import-preview-tbl').innerHTML=html;
 }
-function execImport(){
-  var existing=getR(),ids={};existing.forEach(function(r){ids[r.id]=true;});
-  var newR=_importData.filter(function(r){return!ids[r.id];});
-  saveR(existing.concat(newR).sort(function(a,b){return b.date.localeCompare(a.date);}));
-  showToast('✅ '+newR.length+'件をインポートしました');cancelImport();renderAll();
+async function execImport(){
+  var existingPlaces={};_records.forEach(function(r){existingPlaces[r.date+'|'+r.place]=true;});
+  // 重複チェック（場所+日付で判定）
+  var newR=_importData.filter(function(r){return!existingPlaces[r.date+'|'+r.place];});
+  if(!newR.length){showToast('⚠️ 新しいデータがありません（重複除外済み）');return;}
+  var rows=newR.map(function(r){
+    return{date:r.date,place:r.place,parking:r.parking||null,cost:r.cost||null,
+      rating:r.rating||null,staff:r.staff||null,tags:r.tags&&r.tags.length?r.tags:null,
+      note:r.note||null,url:r.url||null,favorite:!!r.favorite};
+  });
+  try{
+    var res=await _sb.from('recreation_records').insert(rows);
+    if(res.error)throw res.error;
+    showToast('✅ '+newR.length+'件をインポートしました');
+    cancelImport();
+    await _reload();
+  }catch(e){
+    showToast('⚠️ インポートに失敗しました：'+e.message);
+  }
 }
 function cancelImport(){_importData=[];document.getElementById('import-preview-area').style.display='none';}
 
@@ -1482,10 +1661,19 @@ function sendToGAS(){
 }
 
 /* ============================================================ 全削除 */
-function deleteAll(){
+async function deleteAll(){
   if(!confirm('全データを削除します。取り消せません。'))return;
   if(!confirm('本当に削除しますか？'))return;
-  localStorage.removeItem(SK);renderAll();mc('m-data');showToast('🗑️ 全データを削除しました');
+  try{
+    // Supabaseはfilterなしのdeleteを禁止しているのでnot-null filterを使用
+    var res=await _sb.from('recreation_records').delete().not('id','is',null);
+    if(res.error)throw res.error;
+    _records=[];
+    renderAll();renderSidebar();mc('m-data');
+    showToast('🗑️ 全データを削除しました');
+  }catch(e){
+    showToast('⚠️ 削除に失敗しました：'+e.message);
+  }
 }
 
 /* ============================================================ サイドバー開閉 */
@@ -1513,12 +1701,13 @@ document.addEventListener('click',function(e){
 (function init(){
   document.getElementById('f-date').value=todayStr();
   initTags();setGreeting();
-  renderAll();renderSidebar();
   // モバイルメニューボタン表示
   (function chk(){var b=document.querySelector('.menu-btn');if(b)b.style.display=window.innerWidth<=700?'flex':'none';})();
   window.addEventListener('resize',function(){var b=document.querySelector('.menu-btn');if(b)b.style.display=window.innerWidth<=700?'flex':'none';});
   // Escキー
   document.addEventListener('keydown',function(e){if(e.key==='Escape'){['m-reg','m-detail','m-edit','m-data'].forEach(mc);}});
+  // 認証チェック（認証済みならアプリ表示 → Supabaseからデータ取得）
+  checkAuth();
 })();
 </script>
 </body>
