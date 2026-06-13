@@ -837,7 +837,7 @@ a{text-decoration:none;color:inherit}
           <button class="url-confirm" onclick="testUrl('f-url')">確認</button>
         </div>
       </div>
-      <div class="form-group full">
+      <div class="form-group full photo-form-section">
         <label>写真（最大3枚）</label>
         <div class="photo-upload-area" onclick="document.getElementById('f-photos').click()">
           <span class="photo-upload-btn">📷 写真を追加</span>
@@ -951,9 +951,20 @@ var AUTH_KEY      = 'ds_auth_v1';                           // sessionStorageキ
 
 /* ============================================================ Supabase クライアント */
 var _sb = null;
+var _cloudMode = false; // Supabase設定済みならtrue、未設定はlocalStorage動作
+
 function initSupabase(){
-  if(!window.supabase){showToast('⚠️ Supabase SDKが読み込まれていません');return;}
-  _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  if(!window.supabase)return;
+  if(SUPABASE_URL.indexOf('YOUR_PROJECT')>=0||SUPABASE_ANON.indexOf('YOUR_ANON')>=0){
+    _cloudMode=false;return; // 未設定 → localStorageモード
+  }
+  try{
+    _sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
+    _cloudMode=true;
+  }catch(e){
+    console.error('[supabase] init error',e);
+    _cloudMode=false;
+  }
 }
 
 /* ============================================================ 認証 */
@@ -983,9 +994,13 @@ function lockApp(){
 function showApp(){
   initSupabase();
   document.getElementById('app-wrap').style.display='';
-  showLoading(true);
+  // Supabase未設定時は写真セクションを非表示
+  document.querySelectorAll('.photo-form-section').forEach(function(el){
+    el.style.display=_cloudMode?'':'none';
+  });
+  if(_cloudMode){showLoading(true);}
   loadAll().then(function(){
-    showLoading(false);
+    if(_cloudMode){showLoading(false);}
     renderAll();
     renderSidebar();
   });
@@ -1011,33 +1026,44 @@ var CATS=['🌸 公園・自然','🛍️ ショッピング','🍽️ 飲食・
 var RATINGS=['⭐⭐⭐⭐⭐ とても良かった','⭐⭐⭐⭐ 良かった','⭐⭐⭐ 普通','⭐⭐ やや不満','⭐ 改善が必要'];
 var CAT_EMOJI={'🌸 公園・自然':'🌸','🛍️ ショッピング':'🛍️','🍽️ 飲食・外食':'🍽️','🏛️ 博物館・美術館':'🏛️','⛩️ 神社・寺院':'⛩️','🌊 海・川・湖':'🌊','🎭 イベント・祭り':'🎭','♨️ 温泉・健康':'♨️','🌳 農業・収穫体験':'🌳','🎪 レジャー施設':'🎪','🏥 医療・リハビリ':'🏥','🎓 学習・見学':'🎓'};
 
-/* ============================================================ データキャッシュ（Supabaseから取得した全件をここに保持） */
+/* ============================================================ データキャッシュ */
 var _records = [];
+var _SK = 'dayservice_v8'; // localStorageキー
 function getR(){ return _records; }
 
-/* DB行（snake_case）→ JS オブジェクト（camelCase）*/
+/* localStorageに保存するヘルパー */
+function _localSave(){
+  try{localStorage.setItem(_SK,JSON.stringify(_records));return true;}
+  catch(e){showToast('⚠️ 保存失敗（容量不足の可能性）');return false;}
+}
+
+/* DB行（snake_case）→ JS オブジェクト（camelCase） ※localStorageデータもそのまま通せる */
 function dbToJs(row){
   return{id:row.id,date:row.date,place:row.place,parking:row.parking||'',
     cost:row.cost||'',rating:row.rating||'',staff:row.staff||'',
     tags:row.tags||[],note:row.note||'',url:row.url||'',
-    favorite:!!row.favorite,createdAt:row.created_at,
+    favorite:!!row.favorite,
+    createdAt:row.created_at||row.createdAt||'',
     photo_urls:Array.isArray(row.photo_urls)?row.photo_urls.filter(Boolean):[]};
 }
 
-/* Supabaseから全件取得してキャッシュを更新 */
+/* 全件取得（localStorageまたはSupabase） */
 async function loadAll(){
-  if(!_sb)return;
+  if(!_cloudMode){
+    try{_records=JSON.parse(localStorage.getItem(_SK)||'[]').map(dbToJs);}
+    catch(e){_records=[];}
+    return;
+  }
   var res=await _sb.from('recreation_records').select('*')
     .order('date',{ascending:false}).order('created_at',{ascending:false});
   if(res.error){showToast('⚠️ データ取得に失敗しました：'+res.error.message);return;}
   _records=(res.data||[]).map(dbToJs);
 }
 
-/* CRUDの共通後処理：キャッシュ更新 → 再描画 */
+/* CRUDの共通後処理 */
 async function _reload(){
-  showLoading(true);
-  await loadAll();
-  showLoading(false);
+  if(_cloudMode){showLoading(true);await loadAll();showLoading(false);}
+  else{await loadAll();}
   renderAll();renderSidebar();
 }
 
@@ -1073,35 +1099,44 @@ function validateReg(){
 async function saveRecord(){
   var core=validateReg();if(!core)return;
   var tags=Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(function(el){return el.value;});
-  var row={date:core.date,place:core.place,parking:core.parking,
-    cost:document.getElementById('f-cost').value.trim()||null,
-    rating:document.getElementById('f-rating').value||null,
-    staff:document.getElementById('f-staff').value.trim()||null,
-    tags:tags.length?tags:null,
-    note:document.getElementById('f-note').value.trim()||null,
-    url:document.getElementById('f-url').value.trim()||null,
-    favorite:false,photo_urls:[]};
-  var photosToUpload=_regPhotos.slice();
   var btn=document.querySelector('button[onclick="saveRecord()"]');
   if(btn)btn.disabled=true;
   try{
-    // 1. レコードをinsertしてidを取得
+    if(!_cloudMode){
+      // ── localStorage モード
+      var r={id:Date.now().toString(),date:core.date,place:core.place,parking:core.parking,
+        cost:document.getElementById('f-cost').value.trim()||'',
+        rating:document.getElementById('f-rating').value||'',
+        staff:document.getElementById('f-staff').value.trim()||'',
+        tags:tags,note:document.getElementById('f-note').value.trim()||'',
+        url:document.getElementById('f-url').value.trim()||'',
+        favorite:false,photo_urls:[],createdAt:new Date().toISOString()};
+      _records.unshift(r);
+      if(_localSave()){showToast('✅ 登録しました：'+r.place);mc('m-reg');resetForm();renderAll();renderSidebar();}
+      return;
+    }
+    // ── Supabase モード
+    var row={date:core.date,place:core.place,parking:core.parking,
+      cost:document.getElementById('f-cost').value.trim()||null,
+      rating:document.getElementById('f-rating').value||null,
+      staff:document.getElementById('f-staff').value.trim()||null,
+      tags:tags.length?tags:null,
+      note:document.getElementById('f-note').value.trim()||null,
+      url:document.getElementById('f-url').value.trim()||null,
+      favorite:false,photo_urls:[]};
+    var photosToUpload=_regPhotos.slice();
     var ins=await _sb.from('recreation_records').insert(row).select('id').single();
     if(ins.error)throw ins.error;
     var recordId=ins.data.id;
-    // 2. 写真があればStorageにアップロード
     if(photosToUpload.length){
       var uploadedUrls=[];
       try{
         uploadedUrls=await uploadRecordPhotos(recordId,photosToUpload.map(function(p){return p.file;}));
       }catch(uploadErr){
         console.error('[photo] upload failed',uploadErr);
-        // クリーンアップ：アップロード済み分を削除試行
         for(var i=0;i<uploadedUrls.length;i++) deleteStoragePhoto(uploadedUrls[i]);
         showToast('⚠️ 写真のアップロードに失敗しました。通信環境を確認してください');
-        // レコード自体は保存済みなので続行（写真なしで登録）
       }
-      // 3. photo_urlsをupdateで追記
       if(uploadedUrls.length){
         var upd=await _sb.from('recreation_records').update({photo_urls:uploadedUrls}).eq('id',recordId);
         if(upd.error)console.error('[photo] photo_urls update error',upd.error);
@@ -1134,15 +1169,17 @@ function resetForm(){
 async function deleteRecord(id){
   if(!confirm('この記録を削除しますか？'))return;
   try{
-    // 写真URLをあらかじめ取得（DB削除前に）
     var rec=_records.find(function(r){return r.id===id;});
     var photoUrls=rec?normalizePhotoUrls(rec):[];
+    if(!_cloudMode){
+      _records=_records.filter(function(r){return r.id!==id;});
+      _localSave();mc('m-detail');renderAll();renderSidebar();
+      showToast('🗑️ 削除しました');return;
+    }
     var res=await _sb.from('recreation_records').delete().eq('id',id);
     if(res.error)throw res.error;
-    mc('m-detail');
-    await _reload();
+    mc('m-detail');await _reload();
     showToast('🗑️ 削除しました');
-    // Storage写真をバックグラウンドで削除（失敗してもUIには影響なし）
     photoUrls.forEach(function(url){deleteStoragePhoto(url);});
   }catch(e){
     console.error('[deleteRecord]',e);
@@ -1154,19 +1191,16 @@ async function toggleFav(id){
   var r=_records.find(function(x){return x.id===id;});
   if(!r)return;
   var newFav=!r.favorite;
-  // 楽観的更新（即座にUI反映）
   r.favorite=newFav;
   renderAll();
   showToast(newFav?'⭐ お気に入りに追加':'☆ お気に入りを解除');
+  if(!_cloudMode){_localSave();renderSidebar();return;}
   try{
     var res=await _sb.from('recreation_records').update({favorite:newFav}).eq('id',id);
     if(res.error)throw res.error;
-    // バックグラウンドで整合性を保つ
     loadAll().then(function(){renderSidebar();});
   }catch(e){
-    // ロールバック
-    r.favorite=!newFav;
-    renderAll();
+    r.favorite=!newFav;renderAll();
     showToast('⚠️ 更新に失敗しました。通信環境を確認してください');
   }
 }
@@ -1705,12 +1739,26 @@ async function saveEdit(){
   var btn=document.querySelector('button[onclick="saveEdit()"]');
   if(btn)btn.disabled=true;
   try{
-    // 新規写真をアップロード
+    if(!_cloudMode){
+      // ── localStorage モード
+      var idx=-1;
+      for(var i=0;i<_records.length;i++)if(_records[i].id===_eid){idx=i;break;}
+      if(idx===-1)return;
+      _records[idx]=Object.assign({},_records[idx],{date:date,place:place,parking:park.value,
+        cost:document.getElementById('e-cost').value.trim()||'',
+        rating:document.getElementById('e-rating').value||'',
+        staff:document.getElementById('e-staff').value.trim()||'',
+        tags:tags,note:document.getElementById('e-note').value.trim()||'',
+        url:document.getElementById('e-url').value.trim()||'',
+        updatedAt:new Date().toISOString()});
+      _localSave();mc('m-edit');renderAll();renderSidebar();
+      showToast('✅ 更新しました：'+place);return;
+    }
+    // ── Supabase モード（写真対応）
     var newUrls=[];
     if(_editPhotos.added.length){
       newUrls=await uploadRecordPhotos(_eid,_editPhotos.added.map(function(p){return p.file;}));
     }
-    // 最終的なphoto_urls = existing（残したもの）+ 新規アップロード
     var finalPhotoUrls=_editPhotos.existing.concat(newUrls);
     var updates={date:date,place:place,parking:park.value,
       cost:document.getElementById('e-cost').value.trim()||null,
@@ -1719,14 +1767,11 @@ async function saveEdit(){
       tags:tags.length?tags:null,
       note:document.getElementById('e-note').value.trim()||null,
       url:document.getElementById('e-url').value.trim()||null,
-      photo_urls:finalPhotoUrls,
-      updated_at:new Date().toISOString()};
+      photo_urls:finalPhotoUrls,updated_at:new Date().toISOString()};
     var res=await _sb.from('recreation_records').update(updates).eq('id',_eid);
     if(res.error)throw res.error;
-    mc('m-edit');
-    await _reload();
+    mc('m-edit');await _reload();
     showToast('✅ 更新しました：'+place);
-    // 削除した写真をStorageからバックグラウンド削除（失敗してもDB更新は成功済み）
     _editPhotos.removed.forEach(function(url){deleteStoragePhoto(url);});
     _editPhotos.added.forEach(function(p){URL.revokeObjectURL(p.previewUrl);});
     _editPhotos={existing:[],added:[],removed:[]};
@@ -1805,20 +1850,28 @@ function showImportPreview(){
 }
 async function execImport(){
   var existingPlaces={};_records.forEach(function(r){existingPlaces[r.date+'|'+r.place]=true;});
-  // 重複チェック（場所+日付で判定）
   var newR=_importData.filter(function(r){return!existingPlaces[r.date+'|'+r.place];});
   if(!newR.length){showToast('⚠️ 新しいデータがありません（重複除外済み）');return;}
+  if(!_cloudMode){
+    // localStorageモード
+    var toAdd=newR.map(function(r){
+      return Object.assign({photo_urls:[],createdAt:new Date().toISOString()},r,
+        {id:r.id||Date.now().toString()+Math.random().toString(36).slice(2)});
+    });
+    _records=toAdd.concat(_records).sort(function(a,b){return b.date.localeCompare(a.date);});
+    _localSave();showToast('✅ '+newR.length+'件をインポートしました');
+    cancelImport();renderAll();renderSidebar();return;
+  }
   var rows=newR.map(function(r){
     return{date:r.date,place:r.place,parking:r.parking||null,cost:r.cost||null,
       rating:r.rating||null,staff:r.staff||null,tags:r.tags&&r.tags.length?r.tags:null,
-      note:r.note||null,url:r.url||null,favorite:!!r.favorite};
+      note:r.note||null,url:r.url||null,favorite:!!r.favorite,photo_urls:[]};
   });
   try{
     var res=await _sb.from('recreation_records').insert(rows);
     if(res.error)throw res.error;
     showToast('✅ '+newR.length+'件をインポートしました');
-    cancelImport();
-    await _reload();
+    cancelImport();await _reload();
   }catch(e){
     showToast('⚠️ インポートに失敗しました：'+e.message);
   }
@@ -1842,12 +1895,15 @@ function sendToGAS(){
 async function deleteAll(){
   if(!confirm('全データを削除します。取り消せません。'))return;
   if(!confirm('本当に削除しますか？'))return;
+  if(!_cloudMode){
+    _records=[];localStorage.removeItem(_SK);
+    renderAll();renderSidebar();mc('m-data');
+    showToast('🗑️ 全データを削除しました');return;
+  }
   try{
-    // Supabaseはfilterなしのdeleteを禁止しているのでnot-null filterを使用
     var res=await _sb.from('recreation_records').delete().not('id','is',null);
     if(res.error)throw res.error;
-    _records=[];
-    renderAll();renderSidebar();mc('m-data');
+    _records=[];renderAll();renderSidebar();mc('m-data');
     showToast('🗑️ 全データを削除しました');
   }catch(e){
     showToast('⚠️ 削除に失敗しました：'+e.message);
