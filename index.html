@@ -968,16 +968,18 @@ function initSupabase(){
 }
 
 /* ============================================================ 認証 */
+function _ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
+function _ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
+function _ssRemove(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function checkAuth(){
-  if(sessionStorage.getItem(AUTH_KEY)==='1'){showApp();}
-  // ロック画面はデフォルト表示なのでelseは不要
+  if(_ssGet(AUTH_KEY)==='1'){showApp();}
 }
 function tryUnlock(){
   var pw=document.getElementById('lock-pw').value;
   if(pw===APP_PASSWORD){
-    sessionStorage.setItem(AUTH_KEY,'1');
     document.getElementById('lock-screen').style.display='none';
     document.getElementById('lock-err').style.display='none';
+    _ssSet(AUTH_KEY,'1');
     showApp();
   }else{
     document.getElementById('lock-err').style.display='block';
@@ -986,7 +988,7 @@ function tryUnlock(){
   }
 }
 function lockApp(){
-  sessionStorage.removeItem(AUTH_KEY);
+  _ssRemove(AUTH_KEY);
   document.getElementById('lock-screen').style.display='flex';
   document.getElementById('lock-pw').value='';
   document.getElementById('lock-err').style.display='none';
@@ -1001,6 +1003,12 @@ function showApp(){
   if(_cloudMode){showLoading(true);}
   loadAll().then(function(){
     if(_cloudMode){showLoading(false);}
+    renderAll();
+    renderSidebar();
+  }).catch(function(e){
+    console.error('[loadAll error]',e);
+    if(_cloudMode){showLoading(false);}
+    _records=[];
     renderAll();
     renderSidebar();
   });
