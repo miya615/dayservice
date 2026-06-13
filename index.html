@@ -488,6 +488,7 @@ a{text-decoration:none;color:inherit}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div class="app">
 
 <!-- ロック画面 -->
 <div id="lock-screen">
@@ -1217,6 +1218,8 @@ function testUrl(inputId){
   if(!url){showToast('⚠️ URLを入力してください');return;}
   window.open(url,'_blank');
 }
+function fullCalMove(dir){fullCalM+=dir;if(fullCalM<0){fullCalM=11;fullCalY--;}if(fullCalM>11){fullCalM=0;fullCalY++;}renderFullCal();}
+function fullCalToday(){fullCalY=new Date().getFullYear();fullCalM=new Date().getMonth();renderFullCal();}
 
 /* ============================================================ ビュー切り替え */
 var currentView='dashboard';
