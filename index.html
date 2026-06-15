@@ -364,9 +364,9 @@ a{text-decoration:none;color:inherit}
 .modal__title{font-size:1rem;font-weight:700;color:var(--g-d)}
 .modal__close{width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--muted);cursor:pointer;transition:all var(--ease)}
 .modal__close:hover{background:var(--warm);color:#fff}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.form-grid{display:grid;grid-template-columns:1fr;gap:13px}
 .form-group{display:flex;flex-direction:column;gap:5px}
-.form-group.full{grid-column:1/-1}
+.form-group.full{grid-column:1}
 .form-group label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .form-group label .req{color:var(--red);margin-left:2px}
 .form-group input,.form-group textarea,.form-group select{border:1.5px solid var(--border);border-radius:var(--r-sm);padding:10px 13px;font-size:.92rem;color:var(--text);background:#fffdf9;width:100%;outline:none;transition:border-color var(--ease),box-shadow var(--ease)}
@@ -439,9 +439,7 @@ a{text-decoration:none;color:inherit}
   .content,.search-page{padding:14px 12px 60px}
   .stat-cards{flex-wrap:nowrap}
   .stat-card{min-width:150px}
-  .form-grid{grid-template-columns:1fr}
-  .form-group.full{grid-column:1}
-  .data-grid{grid-template-columns:1fr}
+.data-grid{grid-template-columns:1fr}
   .rec-card{flex-wrap:wrap}
   .rec-actions{flex-direction:row;width:100%;justify-content:flex-end}
 }
