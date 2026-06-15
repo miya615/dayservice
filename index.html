@@ -996,10 +996,6 @@ function lockApp(){
 function showApp(){
   initSupabase();
   document.getElementById('app-wrap').style.display='';
-  // Supabase未設定時は写真セクションを非表示
-  document.querySelectorAll('.photo-form-section').forEach(function(el){
-    el.style.display=_cloudMode?'':'none';
-  });
   if(_cloudMode){showLoading(true);}
   loadAll().then(function(){
     if(_cloudMode){showLoading(false);}
@@ -1045,6 +1041,63 @@ function _localSave(){
   catch(e){showToast('⚠️ 保存失敗（容量不足の可能性）');return false;}
 }
 
+/* ============================================================ IndexedDB（ローカル写真保存） */
+var _idb = null;
+var _localPhotoCache = {}; // {photoId: objectUrl}
+function _openIDB(){
+  return new Promise(function(resolve,reject){
+    if(_idb){resolve(_idb);return;}
+    var req=indexedDB.open('ds_photos_v1',1);
+    req.onupgradeneeded=function(e){e.target.result.createObjectStore('photos',{keyPath:'id'});};
+    req.onsuccess=function(e){_idb=e.target.result;resolve(_idb);};
+    req.onerror=function(e){reject(e.target.error);};
+  });
+}
+function _idbSave(id,blob){
+  return _openIDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').put({id:id,blob:blob});
+      tx.oncomplete=function(){resolve();};
+      tx.onerror=function(e){reject(e.target.error);};
+    });
+  });
+}
+function _idbGet(id){
+  return _openIDB().then(function(db){
+    return new Promise(function(resolve){
+      var req=db.transaction('photos','readonly').objectStore('photos').get(id);
+      req.onsuccess=function(e){resolve(e.target.result?e.target.result.blob:null);};
+      req.onerror=function(){resolve(null);};
+    });
+  });
+}
+function _idbDelete(id){
+  return _openIDB().then(function(db){
+    return new Promise(function(resolve){
+      var tx=db.transaction('photos','readwrite');
+      tx.objectStore('photos').delete(id);
+      tx.oncomplete=function(){resolve();};
+      tx.onerror=function(){resolve();};
+    });
+  }).catch(function(){});
+}
+async function _preloadLocalPhotos(){
+  var ids=[];
+  _records.forEach(function(r){(r.photo_urls||[]).forEach(function(u){if(u&&u.startsWith('local://')){ids.push(u.slice(8));}});});
+  for(var i=0;i<ids.length;i++){
+    var id=ids[i];
+    if(_localPhotoCache[id])continue;
+    try{var blob=await _idbGet(id);if(blob)_localPhotoCache[id]=URL.createObjectURL(blob);}
+    catch(e){console.error('[photo] preload',e);}
+  }
+}
+function resolvePhotoUrl(url){
+  if(!url)return null;
+  if(url.startsWith('local://')){return _localPhotoCache[url.slice(8)]||null;}
+  return url;
+}
+
 /* DB行（snake_case）→ JS オブジェクト（camelCase） ※localStorageデータもそのまま通せる */
 function dbToJs(row){
   return{id:row.id,date:row.date,place:row.place,parking:row.parking||'',
@@ -1060,6 +1113,7 @@ async function loadAll(){
   if(!_cloudMode){
     try{_records=JSON.parse(localStorage.getItem(_SK)||'[]').map(dbToJs);}
     catch(e){_records=[];}
+    await _preloadLocalPhotos();
     return;
   }
   var res=await _sb.from('recreation_records').select('*')
@@ -1119,6 +1173,19 @@ async function saveRecord(){
         tags:tags,note:document.getElementById('f-note').value.trim()||'',
         url:document.getElementById('f-url').value.trim()||'',
         favorite:false,photo_urls:[],createdAt:new Date().toISOString()};
+      // 写真をIndexedDBに保存
+      if(_regPhotos.length){
+        document.getElementById('reg-compress-status').style.display='flex';
+        for(var pi=0;pi<_regPhotos.length;pi++){
+          var pid='photo_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+          try{
+            await _idbSave(pid,_regPhotos[pi].file);
+            _localPhotoCache[pid]=URL.createObjectURL(_regPhotos[pi].file);
+            r.photo_urls.push('local://'+pid);
+          }catch(pe){console.error('[photo] local save',pe);}
+        }
+        document.getElementById('reg-compress-status').style.display='none';
+      }
       _records.unshift(r);
       if(_localSave()){showToast('✅ 登録しました：'+r.place);mc('m-reg');resetForm();renderAll();renderSidebar();}
       return;
@@ -1180,6 +1247,14 @@ async function deleteRecord(id){
     var rec=_records.find(function(r){return r.id===id;});
     var photoUrls=rec?normalizePhotoUrls(rec):[];
     if(!_cloudMode){
+      // ローカル写真をIndexedDBから削除
+      if(rec){(rec.photo_urls||[]).forEach(function(u){
+        if(u&&u.startsWith('local://')){
+          var pid=u.slice(8);
+          _idbDelete(pid);
+          if(_localPhotoCache[pid]){URL.revokeObjectURL(_localPhotoCache[pid]);delete _localPhotoCache[pid];}
+        }
+      });}
       _records=_records.filter(function(r){return r.id!==id;});
       _localSave();mc('m-detail');renderAll();renderSidebar();
       showToast('🗑️ 削除しました');return;
@@ -1652,7 +1727,7 @@ function openEditModal(id){
   for(var i=0;i<rs.length;i++)if(rs[i].id===id){r=rs[i];break;}
   if(!r)return;
   _eid=id;
-  _editPhotos={existing:normalizePhotoUrls(r).slice(),added:[],removed:[]};
+  _editPhotos={existing:(r.photo_urls||[]).filter(Boolean).slice(),added:[],removed:[]};
   var tagHtml=CATS.map(function(t,i){var ch=(r.tags||[]).indexOf(t)>=0?' checked':'';return'<span><input type="checkbox" id="ec'+i+'" name="ecat" value="'+esc(t)+'"'+ch+'/><label for="ec'+i+'">'+t+'</label></span>';}).join('');
   document.getElementById('edit-grid').innerHTML=
     '<div class="form-group"><label for="e-date">日にち<span class="req">*</span></label><input type="date" id="e-date" value="'+esc(r.date)+'"/></div>'
@@ -1689,8 +1764,10 @@ function renderEditPhotoPreviews(){
   if(!el)return;
   var html='';
   _editPhotos.existing.forEach(function(url,i){
+    var disp=resolvePhotoUrl(url);
+    if(!disp)return;
     html+='<div class="photo-preview-item">'
-      +'<img src="'+esc(url)+'" alt="写真" loading="lazy" onerror="this.style.display=\'none\'">'
+      +'<img src="'+esc(disp)+'" alt="写真" loading="lazy" onerror="this.style.display=\'none\'">'
       +'<button class="photo-preview-del" onclick="removeEditExisting('+i+')" title="削除">✕</button>'
     +'</div>';
   });
@@ -1752,13 +1829,37 @@ async function saveEdit(){
       var idx=-1;
       for(var i=0;i<_records.length;i++)if(_records[i].id===_eid){idx=i;break;}
       if(idx===-1)return;
+      // 削除された写真をIndexedDBから消す
+      _editPhotos.removed.forEach(function(u){
+        if(u&&u.startsWith('local://')){
+          var pid=u.slice(8);
+          _idbDelete(pid);
+          if(_localPhotoCache[pid]){URL.revokeObjectURL(_localPhotoCache[pid]);delete _localPhotoCache[pid];}
+        }
+      });
+      // 追加された写真をIndexedDBに保存
+      var curUrls=_editPhotos.existing.slice();
+      if(_editPhotos.added.length){
+        document.getElementById('edit-compress-status').style.display='flex';
+        for(var pi=0;pi<_editPhotos.added.length;pi++){
+          var pid='photo_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+          try{
+            await _idbSave(pid,_editPhotos.added[pi].file);
+            _localPhotoCache[pid]=URL.createObjectURL(_editPhotos.added[pi].file);
+            curUrls.push('local://'+pid);
+          }catch(pe){console.error('[photo] local save',pe);}
+        }
+        document.getElementById('edit-compress-status').style.display='none';
+      }
       _records[idx]=Object.assign({},_records[idx],{date:date,place:place,parking:park.value,
         cost:document.getElementById('e-cost').value.trim()||'',
         rating:document.getElementById('e-rating').value||'',
         staff:document.getElementById('e-staff').value.trim()||'',
         tags:tags,note:document.getElementById('e-note').value.trim()||'',
         url:document.getElementById('e-url').value.trim()||'',
-        updatedAt:new Date().toISOString()});
+        photo_urls:curUrls,updatedAt:new Date().toISOString()});
+      _editPhotos.added.forEach(function(p){URL.revokeObjectURL(p.previewUrl);});
+      _editPhotos={existing:[],added:[],removed:[]};
       _localSave();mc('m-edit');renderAll();renderSidebar();
       showToast('✅ 更新しました：'+place);return;
     }
@@ -1924,11 +2025,11 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 
 /* ============================================================ 写真ヘルパー関数 */
 
-// photo_urlsの正規化（null/非配列ガード）
+// photo_urlsの正規化（null/非配列ガード・ローカルURL解決）
 function normalizePhotoUrls(r){
   var urls=r&&r.photo_urls;
   if(!Array.isArray(urls))return[];
-  return urls.filter(function(u){return u&&typeof u==='string';});
+  return urls.filter(function(u){return u&&typeof u==='string';}).map(resolvePhotoUrl).filter(Boolean);
 }
 
 // 登録フォームの写真ステート
